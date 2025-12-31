@@ -1,25 +1,19 @@
-import RetailerForm, { Retailer } from "@/components/admin/retailers/RetailerForm";
+import CategoryForm from "@/components/admin/categories/CategoryForm";
+import { Category } from "@/data/mockProducts";
+import { CategoryService } from "@/services/categoryService";
 import { colors } from "@/styles/colors";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
-/**
- * CreateRetailerScreen
- * 
- * Screen for adding a new retailer to the system.
- * Uses the reusable RetailerForm component.
- */
-export default function CreateRetailerScreen() {
+export default function CreateCategoryScreen() {
     const router = useRouter();
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const handleSubmit = async (data: Omit<Retailer, "id" | "joinedDate">) => {
+    const handleSubmit = async (data: Omit<Category, "id" | "productCount">) => {
         setIsSubmitting(true);
-        // Simulate API call to create retailer
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        console.log("Creating retailer:", data);
+        await CategoryService.create(data);
         setIsSubmitting(false);
         router.back();
     };
@@ -30,11 +24,11 @@ export default function CreateRetailerScreen() {
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={24} color={colors.textDark} />
                 </TouchableOpacity>
-                <Text style={styles.title}>Add Retailer</Text>
+                <Text style={styles.title}>Add Category</Text>
                 <View style={{ width: 40 }} />
             </View>
 
-            <RetailerForm onSubmit={handleSubmit} isSubmitting={isSubmitting} />
+            <CategoryForm onSubmit={handleSubmit} isSubmitting={isSubmitting} />
         </View>
     );
 }
@@ -50,7 +44,7 @@ const styles = StyleSheet.create({
         justifyContent: "space-between",
         paddingHorizontal: 20,
         paddingTop: 10,
-        paddingBottom: 10,
+        paddingBottom: 20,
     },
     backButton: {
         width: 40,
