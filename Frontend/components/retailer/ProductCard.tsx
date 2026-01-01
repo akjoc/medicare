@@ -1,3 +1,4 @@
+import { useCart } from "@/context/CartContext";
 import { Product } from "@/data/mockProducts";
 import { colors } from "@/styles/colors";
 import { Ionicons } from "@expo/vector-icons";
@@ -10,8 +11,13 @@ interface ProductCardProps {
 }
 
 export default function ProductCard({ product, onPress }: ProductCardProps) {
+    const { addToCart } = useCart();
     const hasImage = product.images && product.images.length > 0;
     const isOutOfStock = product.status === "out_of_stock";
+
+    const handleAddToCart = () => {
+        addToCart(product);
+    };
 
     return (
         <TouchableOpacity
@@ -55,11 +61,25 @@ export default function ProductCard({ product, onPress }: ProductCardProps) {
                     )}
                 </View>
 
-                {isOutOfStock ? (
-                    <Text style={styles.outOfStockText}>Out of Stock</Text>
-                ) : (
-                    <Text style={styles.stockText}>In Stock</Text>
-                )}
+                <View style={styles.footer}>
+                    {isOutOfStock ? (
+                        <Text style={styles.outOfStockText}>Out of Stock</Text>
+                    ) : (
+                        <Text style={styles.stockText}>In Stock</Text>
+                    )}
+
+                    {!isOutOfStock && (
+                        <TouchableOpacity
+                            style={styles.addButton}
+                            onPress={(e) => {
+                                e.stopPropagation();
+                                handleAddToCart();
+                            }}
+                        >
+                            <Ionicons name="add" size={20} color={colors.white} />
+                        </TouchableOpacity>
+                    )}
+                </View>
             </View>
         </TouchableOpacity>
     );
@@ -143,6 +163,12 @@ const styles = StyleSheet.create({
         color: colors.textLight,
         textDecorationLine: "line-through",
     },
+    footer: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        marginTop: 4,
+    },
     stockText: {
         fontSize: 12,
         color: "#28A745",
@@ -152,5 +178,18 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: "#EF4444",
         fontWeight: "500",
+    },
+    addButton: {
+        backgroundColor: colors.primary,
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        justifyContent: "center",
+        alignItems: "center",
+        shadowColor: colors.primary,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
+        elevation: 2,
     },
 });

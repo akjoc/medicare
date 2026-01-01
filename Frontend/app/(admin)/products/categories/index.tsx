@@ -4,7 +4,7 @@ import { CategoryService } from "@/services/categoryService";
 import { colors } from "@/styles/colors";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 /**
@@ -42,6 +42,17 @@ export default function CategoriesScreen() {
         await CategoryService.delete(id);
     };
 
+    const organizedCategories = useMemo(() => {
+        const roots = categories.filter(c => !c.parentId);
+        let result: Category[] = [];
+        roots.forEach(root => {
+            result.push(root);
+            const children = categories.filter(c => c.parentId === root.id);
+            result.push(...children);
+        });
+        return result;
+    }, [categories]);
+
     if (loading) {
         return (
             <View style={styles.center}>
@@ -70,14 +81,16 @@ export default function CategoriesScreen() {
             </TouchableOpacity>
 
             <FlatList
-                data={categories}
+                data={organizedCategories}
                 keyExtractor={(item) => item.id}
                 renderItem={({ item }) => (
-                    <CategoryItem
-                        category={item}
-                        onPress={() => router.push(`/(admin)/products/categories/${item.id}`)}
-                        onDelete={() => handleDelete(item.id)}
-                    />
+                    <View style={item.parentId ? { paddingLeft: 40 } : {}}>
+                        <CategoryItem
+                            category={item}
+                            onPress={() => router.push(`/(admin)/products/categories/${item.id}`)}
+                            onDelete={() => handleDelete(item.id)}
+                        />
+                    </View>
                 )}
                 contentContainerStyle={styles.listContent}
                 ListEmptyComponent={

@@ -114,4 +114,18 @@ export const MOCK_PRODUCTS: Product[] = [
         status: "active",
         createdAt: "2024-01-10",
     },
+    {
+        id: "105",
+        name: "Bilajen 500mg",
+        salt: "Acetaminophen",
+        categoryId: "1", // Medicine
+        price: 50,
+        salePrice: 45,
+        stock: 500,
+        description: "Effective for fever and pain relief.",
+        images: [],
+        sku: "MED-004",
+        status: "active",
+        createdAt: "2024-01-10",
+    },
 ];
