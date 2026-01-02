@@ -23,6 +23,10 @@ const Retailer = sequelize.define('Retailer', {
             isEmail: true
         }
     },
+    isActive: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: true,
+    },
     phone: {
         type: DataTypes.STRING,
         allowNull: false,

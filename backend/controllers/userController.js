@@ -18,13 +18,11 @@ const createUser = async (req, res) => {
             return res.status(400).json({ error: 'Please provide email and password' });
         }
 
-        // Check if user exists
         const userExists = await User.findOne({ where: { email } });
         if (userExists) {
             return res.status(400).json({ error: 'User already exists' });
         }
 
-        // Password hashing is handled by Sequelize hook in model
         const user = await User.create({ name, email, password });
 
         res.status(201).json({
@@ -71,7 +69,7 @@ const loginUser = async (req, res) => {
     }
 };
 
-// Get current user (Private)
+// Get current user
 const getMe = async (req, res) => {
     res.status(200).json(req.user);
 };

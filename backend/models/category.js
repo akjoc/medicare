@@ -24,9 +24,21 @@ const Category = sequelize.define('Category', {
     isActive: {
         type: DataTypes.BOOLEAN,
         defaultValue: true,
+    },
+    parentId: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        references: {
+            model: 'Categories', // Self-reference
+            key: 'id',
+        },
     }
 }, {
     timestamps: true
 });
+
+// Self-referencing association
+Category.hasMany(Category, { as: 'subCategories', foreignKey: 'parentId' });
+Category.belongsTo(Category, { as: 'parent', foreignKey: 'parentId' });
 
 module.exports = Category;

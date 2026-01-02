@@ -25,6 +25,10 @@ const Product = sequelize.define('Product', {
         type: DataTypes.INTEGER,
         defaultValue: 0,
     },
+    salt: {
+        type: DataTypes.STRING,
+        allowNull: true
+    },
     imageUrl: {
         type: DataTypes.STRING,
         allowNull: false,

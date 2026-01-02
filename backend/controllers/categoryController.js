@@ -12,7 +12,7 @@ const createSlug = (name) => {
 // Create Category
 const createCategory = async (req, res) => {
     try {
-        const { name, description } = req.body;
+        const { name, description, parentId } = req.body;
         const slug = createSlug(name);
 
         const existingCategory = await Category.findOne({ where: { slug } });
@@ -20,10 +20,18 @@ const createCategory = async (req, res) => {
             return res.status(400).json({ error: 'Category already exists' });
         }
 
+        if (parentId) {
+            const parent = await Category.findByPk(parentId);
+            if (!parent) {
+                return res.status(400).json({ error: 'Parent category not found' });
+            }
+        }
+
         const category = await Category.create({
             name,
             slug,
-            description
+            description,
+            parentId: parentId || null
         });
 
         res.status(201).json(category);
@@ -32,11 +40,45 @@ const createCategory = async (req, res) => {
     }
 };
 
+// Helper to build category tree
+const buildCategoryTree = (categories, parentId = null) => {
+    const categoryList = [];
+    let category;
+    if (parentId == null) {
+        category = categories.filter(cat => cat.parentId == null);
+    } else {
+        category = categories.filter(cat => cat.parentId == parentId);
+    }
+
+    for (let cat of category) {
+        categoryList.push({
+            id: cat.id,
+            name: cat.name,
+            slug: cat.slug,
+            description: cat.description,
+            isActive: cat.isActive,
+            parentId: cat.parentId,
+            createdAt: cat.createdAt,
+            updatedAt: cat.updatedAt,
+            subCategories: buildCategoryTree(categories, cat.id)
+        });
+    }
+    return categoryList;
+};
+
 // Get All Categories
 const getAllCategories = async (req, res) => {
     try {
+        // Fetch all categories flat
         const categories = await Category.findAll();
-        res.status(200).json(categories);
+
+        // Convert to plain objects (if not already)
+        const plainCategories = categories.map(cat => cat.get({ plain: true }));
+
+        // Build tree
+        const categoryTree = buildCategoryTree(plainCategories);
+
+        res.status(200).json(categoryTree);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -45,12 +87,42 @@ const getAllCategories = async (req, res) => {
 // Get Category by ID
 const getCategoryById = async (req, res) => {
     try {
-        const category = await Category.findByPk(req.params.id);
-        if (category) {
-            res.status(200).json(category);
-        } else {
-            res.status(404).json({ error: 'Category not found' });
+        const categoryId = parseInt(req.params.id);
+        console.log(categoryId);
+        const category = await Category.findByPk(categoryId);
+        console.log(category);
+
+        if (!category) {
+            return res.status(404).json({ error: 'Category not found' });
         }
+
+        // Fetch ALL categories to build the full tree
+        // This is necessary because sub-categories might be deep
+        const allCategories = await Category.findAll();
+        console.log('allCategories', allCategories);
+
+        const plainCategories = allCategories.map(cat => cat.get({ plain: true }));
+        console.log('plainCategories', plainCategories);
+
+        // Build the tree starting from this category's children
+        const children = buildCategoryTree(plainCategories, categoryId);
+        console.log('children', children);
+
+        // Get the plain object of the requested category
+        const result = category.get({ plain: true });
+        console.log('result', result);
+
+        // Attach the recursive children
+        result.subCategories = children;
+
+        // Optionally attach parent info (non-recursive for now, just direct parent)
+        if (result.parentId) {
+            const parent = await Category.findByPk(result.parentId);
+            result.parent = parent;
+        }
+        console.log('result-final', result);
+
+        res.status(200).json(result);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -95,6 +167,17 @@ const deleteCategory = async (req, res) => {
         if (productCount > 0) {
             return res.status(400).json({
                 error: `Cannot delete category. It contains ${productCount} products. Please delete or move them first.`
+            });
+        }
+
+        // Check if there are sub-categories
+        const subCategoryCount = await Category.count({
+            where: { parentId: req.params.id }
+        });
+
+        if (subCategoryCount > 0) {
+            return res.status(400).json({
+                error: `Cannot delete category. It has ${subCategoryCount} sub-categories. Please delete them first.`
             });
         }
 

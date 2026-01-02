@@ -5,7 +5,7 @@ const { cloudinary } = require('../config/cloudinaryConfig');
 // Create Product
 const createProduct = async (req, res) => {
     try {
-        const { name, description, price, stock, categoryId } = req.body;
+        const { name, description, price, stock, categoryId, salt } = req.body;
 
         // Check if file is uploaded
         if (!req.file) {
@@ -32,6 +32,7 @@ const createProduct = async (req, res) => {
             description,
             price,
             stock,
+            salt,
             CategoryId: categoryId,
             imageUrl: req.file.path, // Cloudinary URL
             publicId: req.file.filename // Cloudinary Public ID
@@ -70,7 +71,7 @@ const getProductById = async (req, res) => {
 // Update Product
 const updateProduct = async (req, res) => {
     try {
-        const { name, description, price, stock, categoryId } = req.body;
+        const { name, description, price, stock, categoryId, salt } = req.body;
         const product = await Product.findByPk(req.params.id);
 
         if (!product) {
@@ -81,7 +82,8 @@ const updateProduct = async (req, res) => {
             name,
             description,
             price,
-            stock
+            stock,
+            salt
         };
 
         if (categoryId) {
