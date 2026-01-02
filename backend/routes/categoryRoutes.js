@@ -5,8 +5,8 @@ const { protect } = require('../middleware/authMiddleware');
 const { admin } = require('../middleware/adminMiddleware');
 
 // Public Route
-router.get('/', categoryController.getAllCategories);
-router.get('/:id', categoryController.getCategoryById);
+router.get('/', protect, categoryController.getAllCategories);
+router.get('/:id', protect, categoryController.getCategoryById);
 
 // Admin Routes
 router.post('/', protect, admin, categoryController.createCategory);

@@ -6,8 +6,8 @@ const { admin } = require('../middleware/adminMiddleware');
 const { upload } = require('../config/cloudinaryConfig');
 
 // Public Route
-router.get('/', productController.getAllProducts);
-router.get('/:id', productController.getProductById);
+router.get('/', protect, productController.getAllProducts);
+router.get('/:id', protect, productController.getProductById);
 
 // Admin Routes
 router.post('/', protect, admin, upload.single('image'), productController.createProduct);
