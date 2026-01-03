@@ -1,34 +1,44 @@
 import { APP_CONFIG } from "@/constants/app";
-import { loginAs } from "@/services/auth.service";
+import { login } from "@/services/auth.service";
 import { colors } from "@/styles/colors";
 import { spacing } from "@/styles/spacing";
 import { typography } from "@/styles/typography";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function LoginScreen() {
   const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState<null | "admin" | "retailer">(null);
+  const [loading, setLoading] = useState(false);
 
-  async function handleLogin(role: "admin" | "retailer") {
-    if (loading) return;
+  async function handleLogin() {
+    if (!email || !password) {
+      Alert.alert("Error", "Please enter both email and password");
+      return;
+    }
 
-    setLoading(role);
+    setLoading(true);
 
     try {
-      const user = await loginAs(role);
-
+      const user = await login(email, password);
       if (user.role === "admin") {
-        router.replace("/(admin)/orders");
+        router.replace("/(admin)/orders"); // Redirect to admin products
+      } else if (user.role === "retailer") {
+        router.replace("/(retailer)/home"); // Redirect to retailer categories
       } else {
-        router.replace("/(retailer)/home");
+        Alert.alert("Error", "Unknown user role");
       }
+    } catch (error: any) {
+      console.error(error);
+      const message = error.response?.data?.message || "Login failed. Please check your credentials.";
+      Alert.alert("Login Failed", message);
     } finally {
-      setLoading(null);
+      setLoading(false);
     }
   }
 
@@ -49,6 +59,10 @@ export default function LoginScreen() {
             placeholder="Email"
             style={styles.input}
             placeholderTextColor={colors.textLight}
+            value={email}
+            onChangeText={setEmail}
+            autoCapitalize="none"
+            keyboardType="email-address"
           />
 
           <View style={styles.passwordWrapper}>
@@ -57,6 +71,8 @@ export default function LoginScreen() {
               secureTextEntry={!showPassword}
               style={styles.passwordInput}
               placeholderTextColor={colors.textLight}
+              value={password}
+              onChangeText={setPassword}
             />
 
             <Pressable onPress={() => setShowPassword(!showPassword)}>
@@ -69,31 +85,17 @@ export default function LoginScreen() {
           </View>
 
           <Pressable
-            onPress={() => handleLogin("retailer")}
-            disabled={loading !== null}
+            onPress={handleLogin}
+            disabled={loading}
             style={[
               styles.primaryButton,
               loading && styles.disabledButton,
             ]}
           >
             <Text style={styles.primaryButtonText}>
-              {loading === "retailer" ? "Logging in..." : "Login as Retailer"}
+              {loading ? "Logging in..." : "Login"}
             </Text>
           </Pressable>
-
-          <Pressable
-            onPress={() => handleLogin("admin")}
-            disabled={loading !== null}
-            style={[
-              styles.secondaryButton,
-              loading && styles.disabledButton,
-            ]}
-          >
-            <Text style={styles.secondaryButtonText}>
-              {loading === "admin" ? "Logging in..." : "Login as Admin"}
-            </Text>
-          </Pressable>
-
         </View>
       </View>
 
@@ -158,15 +160,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontWeight: "600",
   },
-  secondaryButton: {
-    backgroundColor: "#6C757D",
-    padding: spacing.sm,
-    borderRadius: 8,
-  },
-  secondaryButtonText: {
-    color: colors.white,
-    textAlign: "center",
-  },
   footer: {
     marginTop: "auto",
     marginBottom: spacing.md,
@@ -185,7 +178,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     marginBottom: spacing.md,
   },
-
   passwordInput: {
     flex: 1,
     paddingVertical: spacing.sm,

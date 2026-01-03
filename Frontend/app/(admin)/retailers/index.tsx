@@ -1,12 +1,12 @@
 import RetailerCard from "@/components/admin/retailers/RetailerCard";
 import { Retailer } from "@/components/admin/retailers/RetailerForm";
 import SearchBar from "@/components/SearchBar";
-import { MOCK_RETAILERS } from "@/data/mockData";
+import { retailerService } from "@/services/retailer.service";
 import { colors } from "@/styles/colors";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import { useState } from "react";
-import { FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useState } from "react";
+import { ActivityIndicator, Alert, FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 /**
  * RetailersScreen - List view for managing retailers.
@@ -16,19 +16,61 @@ import { FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native
  */
 export default function RetailersScreen() {
     const router = useRouter();
-    // Using local state for now, but in a real app this would come from an API or global store
-    const [retailers, setRetailers] = useState<Retailer[]>(MOCK_RETAILERS);
+    const [retailers, setRetailers] = useState<Retailer[]>([]);
+    const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
 
+    const fetchRetailers = useCallback(async () => {
+        try {
+            setLoading(true);
+            console.log("Fetching retailers list...");
+            const data = await retailerService.getRetailers();
+            setRetailers(data);
+        } catch (error) {
+            console.error("Failed to fetch retailers", error);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    // Load retailers on focus (so it updates after create/edit)
+    useFocusEffect(
+        useCallback(() => {
+            fetchRetailers();
+            return () => { };
+        }, [fetchRetailers])
+    );
+
     const handleDelete = (id: string) => {
-        // In a real app, this would make an API call
-        // For now, we'll just filter out the item or mark it inactive
-        setRetailers((prev) => prev.filter((r) => r.id !== id));
+        Alert.alert(
+            "Delete Retailer",
+            "Are you sure you want to delete this retailer?",
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Delete",
+                    style: "destructive",
+                    onPress: async () => {
+                        try {
+                            await retailerService.deleteRetailer(id);
+                            // Optimistically update list or refetch
+                            // Refetching ensures consistency
+                            fetchRetailers();
+                            Alert.alert("Success", "Retailer deleted successfully");
+                        } catch (error: any) {
+                            console.error("Delete retailer error:", error);
+                            const message = error.response?.data?.message || "Failed to delete retailer";
+                            Alert.alert("Error", message);
+                        }
+                    }
+                }
+            ]
+        );
     };
 
     const filteredRetailers = retailers.filter(
         (r) =>
-            r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (r.ownerName || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
             r.shopName.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
@@ -58,24 +100,38 @@ export default function RetailersScreen() {
                 />
             </View>
 
-            <FlatList
-                data={filteredRetailers}
-                keyExtractor={(item) => item.id}
-                renderItem={({ item }) => (
-                    <RetailerCard
-                        retailer={item}
-                        onPress={() => router.push(`/(admin)/retailers/${item.id}`)}
-                        onDelete={() => handleDelete(item.id)}
-                    />
-                )}
-                contentContainerStyle={styles.listContent}
-                ListEmptyComponent={
-                    <View style={styles.emptyContainer}>
-                        <Ionicons name="people-outline" size={64} color={colors.textLight} />
-                        <Text style={styles.emptyText}>No retailers found</Text>
-                    </View>
-                }
-            />
+            {loading ? (
+                <View style={styles.center}>
+                    <ActivityIndicator size="large" color={colors.primary} />
+                </View>
+            ) : (
+                <FlatList
+                    data={filteredRetailers}
+                    keyExtractor={(item) => item.id}
+                    renderItem={({ item }) => (
+                        <RetailerCard
+                            retailer={item}
+                            // Map ownerName to name for display if card expects name
+                            // Assuming card was working with MOCK which had 'name'.
+                            // If API returns ownerName, we might need to adjust card or map here.
+                            // Let's assume Card uses 'name'. API returns 'ownerName' likely.
+                            // We can map on the fly or update Card.
+                            // Updating Card is better, but for now let's see.
+                            // Wait, Retailer interface in Form has ownerName. 
+                            // Check RetailerCard...
+                            onPress={() => router.push(`/(admin)/retailers/${item.id}`)}
+                            onDelete={() => handleDelete(item.id)}
+                        />
+                    )}
+                    contentContainerStyle={styles.listContent}
+                    ListEmptyComponent={
+                        <View style={styles.emptyContainer}>
+                            <Ionicons name="people-outline" size={64} color={colors.textLight} />
+                            <Text style={styles.emptyText}>No retailers found</Text>
+                        </View>
+                    }
+                />
+            )}
         </View>
     );
 }
@@ -135,5 +191,10 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: colors.textLight,
         fontWeight: "500",
+    },
+    center: {
+        flex: 1,
+        alignItems: "center",
+        justifyContent: "center",
     },
 });

@@ -1,10 +1,10 @@
 import RetailerForm, { Retailer } from "@/components/admin/retailers/RetailerForm";
-import { MOCK_RETAILERS } from "@/data/mockData";
+import { retailerService } from "@/services/retailer.service";
 import { colors } from "@/styles/colors";
 import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { useState } from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useCallback, useState } from "react";
+import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 /**
  * EditRetailerScreen
@@ -17,17 +17,60 @@ export default function EditRetailerScreen() {
     const router = useRouter();
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // Find the retailer to edit
-    const retailer = MOCK_RETAILERS.find((r) => r.id === id);
+    const [retailer, setRetailer] = useState<Retailer | null>(null);
+    const [loading, setLoading] = useState(true);
 
-    const handleSubmit = async (data: Omit<Retailer, "id" | "joinedDate">) => {
-        setIsSubmitting(true);
-        // Simulate API call update
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        console.log("Updating retailer:", id, data);
-        setIsSubmitting(false);
-        router.back();
+    const fetchRetailer = async () => {
+        try {
+            setLoading(true);
+            const data = await retailerService.getRetailerById(id as string);
+            setRetailer(data);
+        } catch (error) {
+            console.error("Failed to fetch retailer", error);
+        } finally {
+            setLoading(false);
+        }
     };
+
+    useFocusEffect(
+        useCallback(() => {
+            if (id) fetchRetailer();
+            return () => { };
+        }, [id])
+    );
+
+    const handleSubmit = async (data: any) => {
+        setIsSubmitting(true);
+        try {
+            await retailerService.updateRetailer(id as string, data);
+            Alert.alert("Success", "Retailer updated successfully", [
+                { text: "OK", onPress: () => router.back() }
+            ]);
+        } catch (error: any) {
+            console.error("Update retailer error:", error);
+            const message = error.response?.data?.error || error.response?.data?.message || "Failed to update retailer";
+            Alert.alert("Error", message);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    if (loading) {
+        return (
+            <View style={styles.container}>
+                <View style={styles.header}>
+                    <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+                        <Ionicons name="arrow-back" size={24} color={colors.textDark} />
+                    </TouchableOpacity>
+                    <Text style={styles.title}>Edit Retailer</Text>
+                    <View style={{ width: 40 }} />
+                </View>
+                <View style={styles.center}>
+                    <ActivityIndicator size="large" color={colors.primary} />
+                </View>
+            </View>
+        );
+    }
 
     if (!retailer) {
         return (

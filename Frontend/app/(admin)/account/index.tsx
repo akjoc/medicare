@@ -1,3 +1,4 @@
+import * as authService from "@/services/auth.service";
 import { colors } from "@/styles/colors";
 import { spacing } from "@/styles/spacing";
 import { router } from "expo-router";
@@ -10,11 +11,16 @@ export default function AccountScreen() {
             <Text>Account</Text>
             <Pressable
                 style={styles.logoutButton}
-                onPress={() => {
-                    router.replace("/(auth)/login");
+                onPress={async () => {
+                    try {
+                        await authService.logout();
+                        router.replace("/(auth)/login");
+                    } catch (error) {
+                        console.error("Logout failed", error);
+                    }
                 }}
             >
-                <Text>Logout</Text>
+                <Text style={styles.logoutButtonText}>Logout</Text>
             </Pressable>
         </SafeAreaView>
     );
@@ -26,5 +32,10 @@ const styles = StyleSheet.create({
         padding: spacing.sm,
         borderRadius: 8,
         marginBottom: spacing.sm,
+        alignItems: "center",
+    },
+    logoutButtonText: {
+        color: colors.white,
+        fontWeight: "600",
     },
 });

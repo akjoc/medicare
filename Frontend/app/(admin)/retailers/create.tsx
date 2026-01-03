@@ -1,9 +1,10 @@
-import RetailerForm, { Retailer } from "@/components/admin/retailers/RetailerForm";
+import RetailerForm from "@/components/admin/retailers/RetailerForm";
+import { retailerService } from "@/services/retailer.service";
 import { colors } from "@/styles/colors";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 /**
  * CreateRetailerScreen
@@ -15,13 +16,20 @@ export default function CreateRetailerScreen() {
     const router = useRouter();
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const handleSubmit = async (data: Omit<Retailer, "id" | "joinedDate">) => {
+    const handleSubmit = async (data: any) => {
         setIsSubmitting(true);
-        // Simulate API call to create retailer
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        console.log("Creating retailer:", data);
-        setIsSubmitting(false);
-        router.back();
+        try {
+            var response = await retailerService.createRetailer(data);
+            console.log("response", response);
+            Alert.alert("Success", "Retailer created successfully", [
+                { text: "OK", onPress: () => router.back() }
+            ]);
+        } catch (error: any) {
+            const message = error.response?.data?.error || error.response?.data?.message || "Failed to create retailer";
+            Alert.alert("Error", message);
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     return (

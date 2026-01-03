@@ -25,7 +25,7 @@ export default function RetailerCard({ retailer, onPress, onDelete }: RetailerCa
                         {retailer.shopName}
                     </Text>
                     <View style={styles.statusRow}>
-                        <Text style={styles.name}>{retailer.name}</Text>
+                        <Text style={styles.name}>{retailer.ownerName}</Text>
                         <View style={styles.dot} />
                         <View
                             style={[

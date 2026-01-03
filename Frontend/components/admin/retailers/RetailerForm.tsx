@@ -15,21 +15,25 @@ import {
 // Interface defining the shape of a Retailer object
 export interface Retailer {
     id: string;
-    name: string;
+    ownerName: string;
     shopName: string;
     email: string;
     phone: string;
     address: string;
+    city?: string;
+    state?: string;
+    zipCode?: string;
+    drugLicenseNumber?: string;
+    password?: string;
     status: "active" | "inactive";
     joinedDate: string;
-    gst: string;
-    licenseNumber: string;
+    gst?: string;
 }
 
 // Props for the RetailerForm component
 interface RetailerFormProps {
     initialValues?: Partial<Retailer>; // Values for editing mode
-    onSubmit: (data: Omit<Retailer, "id" | "joinedDate">) => Promise<void>; // Submit handler
+    onSubmit: (data: any) => Promise<void>; // Submit handler
     isSubmitting?: boolean; // Loading state
 }
 
@@ -46,14 +50,18 @@ export default function RetailerForm({
 }: RetailerFormProps) {
     const router = useRouter();
     const [formData, setFormData] = useState({
-        name: initialValues?.name || "",
+        ownerName: initialValues?.ownerName || "",
         shopName: initialValues?.shopName || "",
         email: initialValues?.email || "",
         phone: initialValues?.phone || "",
         address: initialValues?.address || "",
+        city: initialValues?.city || "",
+        state: initialValues?.state || "",
+        zipCode: initialValues?.zipCode || "",
+        drugLicenseNumber: initialValues?.drugLicenseNumber || "",
+        password: "",
         status: initialValues?.status || "active",
         gst: initialValues?.gst || "",
-        licenseNumber: initialValues?.licenseNumber || "",
     });
 
     const [errors, setErrors] = useState<Record<string, string>>({});
@@ -62,7 +70,7 @@ export default function RetailerForm({
     const validate = () => {
         const newErrors: Record<string, string> = {};
 
-        if (!formData.name.trim()) newErrors.name = "Full name is required";
+        if (!formData.ownerName.trim()) newErrors.ownerName = "Full name is required";
         if (!formData.shopName.trim()) newErrors.shopName = "Shop name is required";
 
         // Basic email regex validation
@@ -80,17 +88,42 @@ export default function RetailerForm({
         }
 
         if (!formData.address.trim()) newErrors.address = "Address is required";
-        if (!formData.gst.trim()) newErrors.gst = "GST number is required";
-        if (!formData.licenseNumber.trim())
-            newErrors.licenseNumber = "Drug license number is required";
+
+        // Password is compulsory only for new retailers
+        if (!initialValues && !formData.password.trim()) {
+            newErrors.password = "Password is required";
+        }
 
         setErrors(newErrors);
+
         return Object.keys(newErrors).length === 0; // Return true if no errors
+    };
+
+    const handleInputChange = (field: string, text: string) => {
+        setFormData((prev) => ({ ...prev, [field]: text }));
+        // Clear error when user types
+        if (errors[field]) {
+            setErrors((prev) => {
+                const newErrors = { ...prev };
+                delete newErrors[field];
+                return newErrors;
+            });
+        }
     };
 
     const handleSubmit = async () => {
         if (validate()) {
-            await onSubmit(formData as any);
+            // Prepare payload
+            const payload = {
+                ...formData,
+                city: formData.city || "",
+                state: formData.state || "",
+                zipCode: formData.zipCode || "",
+                drugLicenseNumber: formData.drugLicenseNumber || "",
+                gst: formData.gst || "",
+                password: formData.password || "",
+            };
+            await onSubmit(payload);
         }
     };
 
@@ -99,10 +132,12 @@ export default function RetailerForm({
         field: keyof typeof formData,
         placeholder: string,
         keyboardType: "default" | "email-address" | "phone-pad" = "default",
-        multiline = false
+        multiline = false,
+        secureTextEntry = false,
+        required = false
     ) => (
         <View style={styles.inputContainer}>
-            <Text style={styles.label}>{label} <Text style={styles.required}>*</Text></Text>
+            <Text style={styles.label}>{label} {required && <Text style={styles.required}>*</Text>}</Text>
             <TextInput
                 style={[
                     styles.input,
@@ -110,14 +145,13 @@ export default function RetailerForm({
                     errors[field] && styles.inputError,
                 ]}
                 value={formData[field]}
-                onChangeText={(text) =>
-                    setFormData((prev) => ({ ...prev, [field]: text }))
-                }
+                onChangeText={(text) => handleInputChange(field, text)}
                 placeholder={placeholder}
                 placeholderTextColor={colors.textLight}
                 keyboardType={keyboardType}
                 multiline={multiline}
                 autoCapitalize={field === "email" ? "none" : "words"}
+                secureTextEntry={secureTextEntry}
             />
             {errors[field] && <Text style={styles.errorText}>{errors[field]}</Text>}
         </View>
@@ -133,10 +167,11 @@ export default function RetailerForm({
                     <Text style={styles.sectionTitle}>Basic Information</Text>
                 </View>
 
-                {renderInput("Full Name", "name", "John Doe")}
-                {renderInput("Shop Name", "shopName", "Medicare Pharmacy")}
-                {renderInput("Email Address", "email", "john@example.com", "email-address")}
-                {renderInput("Phone Number", "phone", "9876543210", "phone-pad")}
+                {renderInput("Full Name", "ownerName", "Rahul Sharma", "default", false, false, true)}
+                {renderInput("Shop Name", "shopName", "City Center Pharmacy", "default", false, false, true)}
+                {renderInput("Email Address", "email", "rahul.sharma@example.com", "email-address", false, false, true)}
+                {renderInput("Phone Number", "phone", "9876543210", "phone-pad", false, false, true)}
+                {renderInput("Password", "password", "********", "default", false, true, !initialValues)}
             </View>
 
             <View style={styles.card}>
@@ -147,9 +182,12 @@ export default function RetailerForm({
                     <Text style={styles.sectionTitle}>Address & Legal</Text>
                 </View>
 
-                {renderInput("Address", "address", "123 Main St, City, State", "default", true)}
+                {renderInput("Address", "address", "Shop No. 12, Main Market", "default", true, false, true)}
+                {renderInput("City", "city", "Gurgaon")}
+                {renderInput("State", "state", "Haryana")}
+                {renderInput("Zip Code", "zipCode", "122001", "phone-pad")}
                 {renderInput("GST Number", "gst", "22AAAAA0000A1Z5")}
-                {renderInput("Drug License No.", "licenseNumber", "DL-1234567890")}
+                {renderInput("Drug License No.", "drugLicenseNumber", "HR-2024-LIC-998877")}
             </View>
 
             <View style={styles.card}>
