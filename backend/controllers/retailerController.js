@@ -1,5 +1,6 @@
 const Retailer = require('../models/retailer');
 const User = require('../models/user');
+const Category = require('../models/category');
 
 // Create a new retailer
 const createRetailer = async (req, res) => {
@@ -14,7 +15,8 @@ const createRetailer = async (req, res) => {
             state,
             zipCode,
             drugLicenseNumber,
-            password
+            password,
+            categoryIds // Array of Category IDs
         } = req.body;
 
         // Check availability
@@ -65,6 +67,11 @@ const createRetailer = async (req, res) => {
             UserId: user.id
         });
 
+        // 3. Assign Categories if provided
+        if (categoryIds && Array.isArray(categoryIds) && categoryIds.length > 0) {
+            await retailer.setCategories(categoryIds);
+        }
+
         res.status(201).json(retailer);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -102,6 +109,12 @@ const updateRetailer = async (req, res) => {
 
         if (retailer) {
             await retailer.update(req.body);
+
+            // Update categories if provided
+            if (req.body.categoryIds && Array.isArray(req.body.categoryIds)) {
+                await retailer.setCategories(req.body.categoryIds);
+            }
+
             res.status(200).json(retailer);
         } else {
             res.status(404).json({ error: 'Retailer not found' });
