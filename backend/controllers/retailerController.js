@@ -18,6 +18,8 @@ const createRetailer = async (req, res) => {
             gst,
             rating,
             password,
+            status,
+            isActive,
             categoryIds // Array of Category IDs
         } = req.body;
 
@@ -70,6 +72,8 @@ const createRetailer = async (req, res) => {
             drugLicenseNumber: drugLicenseNumber === "" ? null : drugLicenseNumber,
             gst: gst === "" ? null : gst,
             rating,
+            status,
+            isActive: status === 'inactive' ? false : (isActive !== undefined ? isActive : true),
             UserId: user.id
         });
 
