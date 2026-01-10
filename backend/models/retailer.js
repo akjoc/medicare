@@ -1,5 +1,6 @@
 const { DataTypes } = require('sequelize');
 const { sequelize } = require('../config/database');
+const Category = require('./category');
 
 const Retailer = sequelize.define('Retailer', {
     id: {
@@ -49,8 +50,17 @@ const Retailer = sequelize.define('Retailer', {
     },
     drugLicenseNumber: {
         type: DataTypes.STRING,
-        allowNull: false,
+        allowNull: true,
         unique: true
+    },
+    gst: {
+        type: DataTypes.STRING,
+        allowNull: true
+    },
+    rating: {
+        type: DataTypes.FLOAT,
+        allowNull: false,
+        defaultValue: 5.0
     },
     status: {
         type: DataTypes.ENUM('active', 'inactive'),
@@ -67,5 +77,8 @@ const Retailer = sequelize.define('Retailer', {
 }, {
     timestamps: true
 });
+
+Retailer.belongsToMany(Category, { through: 'RetailerCategories' });
+Category.belongsToMany(Retailer, { through: 'RetailerCategories' });
 
 module.exports = Retailer;

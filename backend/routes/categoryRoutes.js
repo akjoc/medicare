@@ -11,6 +11,7 @@ router.get('/:id', protect, categoryController.getCategoryById);
 // Admin Routes
 router.post('/', protect, admin, categoryController.createCategory);
 router.put('/:id', protect, admin, categoryController.updateCategory);
+router.delete('/delete-all', protect, admin, categoryController.deleteAllCategories);
 router.delete('/:id', protect, admin, categoryController.deleteCategory);
 
 module.exports = router;
