@@ -37,15 +37,25 @@ const createProduct = async (req, res) => {
         const imageUrls = req.files.map(file => file.path);
         const publicIds = req.files.map(file => file.filename);
 
+        // Helper to parse potential JSON or single string
+        const parseArrayField = (field) => {
+            if (!field) return [];
+            try {
+                return JSON.parse(field);
+            } catch (e) {
+                return [field];
+            }
+        };
+
         const product = await Product.create({
             name,
             description,
             price,
             buyingPrice,
             salePrice,
-            companies: companies ? JSON.parse(companies) : [],
+            companies: parseArrayField(companies),
             stock,
-            salt: salt ? JSON.parse(salt) : [],
+            salt: parseArrayField(salt),
             CategoryId: categoryId,
             imageUrls: imageUrls, // Store array
             publicIds: publicIds // Store array
@@ -135,15 +145,26 @@ const updateProduct = async (req, res) => {
             return res.status(404).json({ error: 'Product not found' });
         }
 
+        // Helper to parse potential JSON or single string (Re-declared for scope, or moving to helper file would be better, but inline for now to avoid large diffs)
+        const parseArrayField = (field) => {
+            if (field === undefined) return undefined; // Don't update if not provided
+            if (field === null) return [];
+            try {
+                return JSON.parse(field);
+            } catch (e) {
+                return [field];
+            }
+        };
+
         let updatedData = {
             name,
             description,
             price,
             buyingPrice,
             salePrice,
-            companies: companies ? JSON.parse(companies) : undefined,
+            companies: parseArrayField(companies),
             stock,
-            salt: salt ? JSON.parse(salt) : undefined
+            salt: parseArrayField(salt)
         };
 
         if (categoryId) {
