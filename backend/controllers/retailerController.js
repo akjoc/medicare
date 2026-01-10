@@ -67,8 +67,8 @@ const createRetailer = async (req, res) => {
             city,
             state,
             zipCode,
-            drugLicenseNumber,
-            gst,
+            drugLicenseNumber: drugLicenseNumber === "" ? null : drugLicenseNumber,
+            gst: gst === "" ? null : gst,
             rating,
             UserId: user.id
         });
