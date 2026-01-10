@@ -43,16 +43,31 @@ const createCategory = async (req, res) => {
 };
 
 // Helper to build category tree
+// Helper to build category tree
 const buildCategoryTree = (categories, parentId = null) => {
     const categoryList = [];
     let category;
+
+    // If parentId is explicitly null, we want global roots.
+    // BUT, if we have a filtered list (e.g. for a retailer), 
+    // a "root" in this context is any category whose parent is NOT in the list.
     if (parentId == null) {
-        category = categories.filter(cat => cat.parentId == null);
+        // Find all IDs currently in the list
+        const allIds = new Set(categories.map(c => c.id));
+
+        // A category is a "root" to display if:
+        // 1. It has no parent (global root)
+        // 2. OR its parent exists but is NOT in our filtered list (orphaned sub-tree)
+        category = categories.filter(cat =>
+            cat.parentId == null || !allIds.has(cat.parentId)
+        );
     } else {
+        // Normal recursion: find children of the specific parent
         category = categories.filter(cat => cat.parentId == parentId);
     }
 
     for (let cat of category) {
+        // Prevent infinite recursion if data is bad, though logic above prevents it mostly
         categoryList.push({
             id: cat.id,
             name: cat.name,

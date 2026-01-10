@@ -12,8 +12,8 @@ router.get('/:id', protect, productController.getProductById);
 
 // Admin Routes
 router.post('/bulk-upload', protect, admin, uploadFile.single('file'), productController.bulkUploadProducts);
-router.post('/', protect, admin, upload.single('image'), productController.createProduct);
-router.put('/:id', protect, admin, upload.single('image'), productController.updateProduct);
+router.post('/', protect, admin, upload.array('image', 5), productController.createProduct);
+router.put('/:id', protect, admin, upload.array('image', 5), productController.updateProduct);
 router.delete('/delete-all', protect, admin, productController.deleteAllProducts);
 router.delete('/:id', protect, admin, productController.deleteProduct);
 

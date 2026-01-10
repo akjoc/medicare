@@ -9,37 +9,46 @@ const xlsx = require('xlsx');
 // Create Product
 const createProduct = async (req, res) => {
     try {
-        const { name, description, price, stock, categoryId, salt } = req.body;
+        const { name, description, price, buyingPrice, salePrice, companies, stock, categoryId, salt } = req.body;
 
-        // Check if file is uploaded
-        if (!req.file) {
-            return res.status(400).json({ error: 'Please upload an image' });
+        // Check if files are uploaded
+        if (!req.files || req.files.length === 0) {
+            return res.status(400).json({ error: 'Please upload at least one image' });
         }
 
         // Check if category provided
         if (!categoryId) {
-            // Delete the uploaded image since we are not going to save the product
-            await cloudinary.uploader.destroy(req.file.filename);
+            // Delete uploaded images since we are not going to save the product
+            for (const file of req.files) {
+                await cloudinary.uploader.destroy(file.filename);
+            }
             return res.status(400).json({ error: 'Please provide a categoryId' });
         }
 
         // Check if product with same name exists
         const existingProduct = await Product.findOne({ where: { name } });
         if (existingProduct) {
-            // Delete the uploaded image since we are not going to save the product
-            await cloudinary.uploader.destroy(req.file.filename);
+            for (const file of req.files) {
+                await cloudinary.uploader.destroy(file.filename);
+            }
             return res.status(400).json({ error: 'Product with this name already exists' });
         }
+
+        const imageUrls = req.files.map(file => file.path);
+        const publicIds = req.files.map(file => file.filename);
 
         const product = await Product.create({
             name,
             description,
             price,
+            buyingPrice,
+            salePrice,
+            companies: companies ? JSON.parse(companies) : [],
             stock,
-            salt,
+            salt: salt ? JSON.parse(salt) : [],
             CategoryId: categoryId,
-            imageUrl: req.file.path, // Cloudinary URL
-            publicId: req.file.filename // Cloudinary Public ID
+            imageUrls: imageUrls, // Store array
+            publicIds: publicIds // Store array
         });
 
         res.status(201).json(product);
@@ -61,6 +70,7 @@ const getAllProducts = async (req, res) => {
                 [Op.or]: [
                     { name: { [Op.like]: `%${search}%` } },
                     { salt: { [Op.like]: `%${search}%` } },
+                    { companies: { [Op.like]: `%${search}%` } },
                     { '$Category.name$': { [Op.like]: `%${search}%` } }
                 ]
             };
@@ -118,7 +128,7 @@ const getProductById = async (req, res) => {
 // Update Product
 const updateProduct = async (req, res) => {
     try {
-        const { name, description, price, stock, categoryId, salt } = req.body;
+        const { name, description, price, buyingPrice, salePrice, companies, stock, categoryId, salt } = req.body;
         const product = await Product.findByPk(req.params.id);
 
         if (!product) {
@@ -129,24 +139,32 @@ const updateProduct = async (req, res) => {
             name,
             description,
             price,
+            buyingPrice,
+            salePrice,
+            companies: companies ? JSON.parse(companies) : undefined,
             stock,
-            salt
+            salt: salt ? JSON.parse(salt) : undefined
         };
 
         if (categoryId) {
             updatedData.CategoryId = categoryId;
         }
 
-        // If a new image is uploaded
-        if (req.file) {
-            // 1. Delete old image from Cloudinary
-            if (product.publicId) {
+        // If new images are uploaded, replace old ones (Strategy: Replace All)
+        if (req.files && req.files.length > 0) {
+            // 1. Delete old images from Cloudinary
+            if (product.publicIds && Array.isArray(product.publicIds)) {
+                for (const pid of product.publicIds) {
+                    await cloudinary.uploader.destroy(pid);
+                }
+            } else if (product.publicId) {
+                // Legacy support if migration messed up
                 await cloudinary.uploader.destroy(product.publicId);
             }
 
             // 2. Add new image data
-            updatedData.imageUrl = req.file.path;
-            updatedData.publicId = req.file.filename;
+            updatedData.imageUrls = req.files.map(file => file.path);
+            updatedData.publicIds = req.files.map(file => file.filename);
         }
 
         await product.update(updatedData);
@@ -166,8 +184,13 @@ const deleteProduct = async (req, res) => {
             return res.status(404).json({ error: 'Product not found' });
         }
 
-        // 1. Delete image from Cloudinary
-        if (product.publicId) {
+        // 1. Delete images from Cloudinary
+        if (product.publicIds && Array.isArray(product.publicIds)) {
+            for (const pid of product.publicIds) {
+                await cloudinary.uploader.destroy(pid);
+            }
+        } else if (product.publicId) {
+            // Legacy
             await cloudinary.uploader.destroy(product.publicId);
         }
 
@@ -253,94 +276,153 @@ const bulkUploadProducts = async (req, res) => {
         let successCount = 0;
         let failedCount = 0;
         let errors = [];
+        let currentSectionCategoryId = null; // Declare here
 
         for (let i = 0; i < rows.length; i++) {
             const row = rows[i];
-            const rowNumber = i + headerRowIndex + 2; // Adjust for 0-index + 1 + skipped rows
+            const rowNumber = i + headerRowIndex + 2;
 
             try {
-                // Normalize keys (handle Name vs name)
+                // Normalize keys & Handle User-Specific Columns
                 const name = row.Name || row.name || row['product name'];
-                let price = row.Price || row.price || row['MRP'] || row['PTR']; // Fallback to other potential price columns
 
-                // User-Specific Columns Mapping
-                // Composition + Dosage | Packing
+                // Helper to clean price: "13.35/amp." -> 13.35
+                const cleanPrice = (val) => {
+                    if (!val) return null;
+                    if (typeof val === 'number') return val;
+                    const match = String(val).match(/[0-9]+(\.[0-9]+)?/);
+                    return match ? parseFloat(match[0]) : null;
+                };
+
+                let rawPrice = row.price || row.Price || row['MRP'];
+                let rawBuyingPrice = row['Buying Price'] || row['buying price'];
+                let rawSalePrice = row['price_1'] || row['Price_1'] || row['Sale Price'] || row['selling price'];
+
+                let price = cleanPrice(rawPrice);
+                let buyingPrice = cleanPrice(rawBuyingPrice);
+                let salePrice = cleanPrice(rawSalePrice);
+
+                // Company -> companies (Array)
+                let companies = [];
+                if (row.Company || row.COMPANY || row.company) {
+                    companies.push(String(row.Company || row.COMPANY || row.company).trim());
+                }
+
+                // Salt -> salt (Array, split by '+')
+                let saltArray = [];
+                const rawSalt = row.salt || row.Salt || row.SALT;
+                if (rawSalt) {
+                    // "Amoxycillin 250mg + Clavulanic acid 125mg"
+                    saltArray = String(rawSalt).split('+').map(s => s.trim());
+                }
+
+                // Description parts
                 let descriptionParts = [];
                 if (row.Composition) descriptionParts.push(`Composition: ${row.Composition}`);
                 if (row.Dosage) descriptionParts.push(`Dosage: ${row.Dosage}`);
                 if (row.Packing) descriptionParts.push(`Packing: ${row.Packing}`);
-                if (row.COMPONY || row.Company) descriptionParts.push(`Company: ${row.COMPONY || row.Company}`);
                 if (row.Description) descriptionParts.push(row.Description);
-
                 const finalDescription = descriptionParts.join(' | ');
 
-                const stock = row.Stock || row.stock;
-                const salt = row.Salt || row.salt;
+                const stock = row.Stock || row.stock || 0;
 
-                // Category Logic: Row specific > Title inferred
-                const categoryId = row.CategoryId || row.categoryId || row['Category Id'] || inferredCategoryId;
+                // Category Logic:
+                // 1. Row 'Category' (Column J)
+                // 2. Section Header (inferred from previous loop)
+                // 3. Title inferred
+                let targetCategoryId = null;
 
-                // SKIP SECTION HEADERS -> SWITCH TO CATEGORY
-                // Check if Price, Packing, Composition are effectively empty
-                // Helper to check if a value is "empty" (null, undefined, whitespace, 0, -, .)
-                const isEmpty = (val) => {
-                    if (!val) return true; // null, undefined, 0, false, ""
-                    if (typeof val === 'string') {
-                        const trimmed = val.trim();
-                        return trimmed === '' || trimmed === '-' || trimmed === '.' || trimmed === '0';
+                // Check row category column
+                const rowCategoryName = row.Category || row.category || row.CATEGORY;
+                if (rowCategoryName && typeof rowCategoryName === 'string') {
+                    // Try to find category by name
+                    const cleanName = rowCategoryName.trim();
+                    let cat = await Category.findOne({ where: { name: cleanName } });
+                    if (!cat) {
+                        // Create it!
+                        cat = await Category.create({
+                            name: cleanName,
+                            slug: cleanName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, ''),
+                            parentId: currentSectionCategoryId || inferredCategoryId
+                        }); // If inside a section, make it a child? Or top level? 
+                        // The screenshot shows "Tablet" as category. "Antibiotics" as section. 
+                        // Likely "Tablet" is a child of "Antibiotics".
                     }
-                    if (typeof val === 'number') return val === 0;
+                    targetCategoryId = cat.id;
+                }
+
+                if (!targetCategoryId) {
+                    targetCategoryId = currentSectionCategoryId || inferredCategoryId;
+                }
+
+                // SKIP SECTION HEADERS / INVALID ROWS
+                // Logic: A row is a header if Name is present but Price/Packing are effectively empty/invalid
+                const isEmpty = (val) => {
+                    if (!val && val !== 0) return true;
+                    if (typeof val === 'string') {
+                        const t = val.trim();
+                        return t === '' || t === '-' || t === '.' || t === '0';
+                    }
                     return false;
                 };
 
-                const isPriceEmpty = isEmpty(price);
-                const isPackingEmpty = isEmpty(row.Packing);
-                const isCompositionEmpty = isEmpty(row.Composition);
-
-                if (name && isPriceEmpty && isPackingEmpty && isCompositionEmpty) {
-                    // This is a Category Row (e.g., "INJECTABLES")
+                // Is this a section header like "INJECTABLES"?
+                // If it has a Name but no Price, no Packing, no Salt... it's likely a header.
+                // BUT, wait, "Tablet" column might be filled? 
+                if (name && isEmpty(price) && isEmpty(row.Packing) && isEmpty(rawSalt)) {
+                    // Treat as Section Header
                     const sectionName = name.trim();
-
-                    // Create/Find this Category
                     let sectionCategory = await Category.findOne({ where: { name: sectionName } });
                     if (!sectionCategory) {
                         sectionCategory = await Category.create({
                             name: sectionName,
                             slug: sectionName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, ''),
-                            parentId: inferredCategoryId // Corrected variable name
+                            parentId: inferredCategoryId
                         });
                     }
-
                     currentSectionCategoryId = sectionCategory.id;
-                    continue; // Done with this row
+                    continue; // Skip creating product
                 }
 
-                // Validate
-                if (!name) throw new Error('Product Name is required (Column: name)');
-                if (!price) throw new Error('Price is required (Column: price)');
-                if (!categoryId) throw new Error(`Category ID is required. Title '${categoryFromTitle}' could not be mapped.`);
+                if (!name) continue; // Skip empty rows
+                if (!price) {
+                    errors.push(`Row ${rowNumber}: Price is missing for "${name}"`);
+                    failedCount++;
+                    continue;
+                }
+                if (!targetCategoryId) {
+                    errors.push(`Row ${rowNumber}: Category could not be determined for "${name}"`);
+                    failedCount++;
+                    continue;
+                }
 
-                // Check Duplicates
+                // Duplicate Check
                 const existingProduct = await Product.findOne({ where: { name: name } });
-                if (existingProduct) throw new Error('Product already exists');
+                if (existingProduct) {
+                    errors.push(`Row ${rowNumber}: Duplicate product name "${name}"`);
+                    failedCount++;
+                    continue;
+                }
 
-                // Create Product
                 await Product.create({
-                    name: name,
+                    name,
                     description: finalDescription,
-                    price: parseFloat(price), // Ensure number
-                    stock: stock ? parseInt(stock) : 0,
-                    salt: salt || null,
-                    CategoryId: categoryId,
-                    imageUrl: '',
-                    publicId: ''
+                    price,
+                    buyingPrice: buyingPrice || null,
+                    salePrice: salePrice || null,
+                    companies: companies, // Array
+                    stock,
+                    salt: saltArray, // Array
+                    CategoryId: targetCategoryId,
+                    imageUrls: [],
+                    publicIds: []
                 });
 
                 successCount++;
-
             } catch (err) {
+                console.error(`Row ${rowNumber} Error:`, err);
+                errors.push(`Row ${rowNumber}: ${err.message}`);
                 failedCount++;
-                errors.push({ row: rowNumber, name: row.Name || row.name || 'Unknown', error: err.message });
             }
         }
 

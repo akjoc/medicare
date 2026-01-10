@@ -10,7 +10,14 @@ const protect = async (req, res, next) => {
         req.headers.authorization.startsWith('Bearer')
     ) {
         try {
-            token = req.headers.authorization.split(' ')[1];
+            // Split by any amount of whitespace to be robust
+            const parts = req.headers.authorization.split(/\s+/);
+            token = parts[1];
+
+            if (!token || parts[0].toLowerCase() !== 'bearer') {
+                console.error('Core Auth Error: Malformed Authorization Header', req.headers.authorization);
+                return res.status(401).json({ error: 'Not authorized, token missing or malformed' });
+            }
 
             // Check if token is blacklisted
             const blacklistedToken = await Blacklist.findOne({ where: { token } });
@@ -30,8 +37,10 @@ const protect = async (req, res, next) => {
 
             next();
         } catch (error) {
-            console.error(error);
-            res.status(401).json({ error: 'Not authorized, token failed' });
+            console.error('Core Auth Error:', error.message);
+            console.error('Token:', token);
+            // console.error('Decoded:', jwt.decode(token)); // Optional: to see if structure is valid
+            return res.status(401).json({ error: 'Not authorized, token failed' });
         }
     }
 

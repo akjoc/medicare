@@ -18,24 +18,39 @@ const Product = sequelize.define('Product', {
         allowNull: true,
     },
     price: {
-        type: DataTypes.DECIMAL(10, 2),
+        type: DataTypes.FLOAT,
         allowNull: false,
+    },
+    buyingPrice: {
+        type: DataTypes.FLOAT,
+        allowNull: true,
+    },
+    salePrice: {
+        type: DataTypes.FLOAT,
+        allowNull: true,
+    },
+    companies: {
+        type: DataTypes.JSON, // Array of strings
+        defaultValue: [],
     },
     stock: {
         type: DataTypes.INTEGER,
         defaultValue: 0,
     },
     salt: {
-        type: DataTypes.STRING,
-        allowNull: true
+        type: DataTypes.JSON, // MySQL stores arrays as JSON
+        allowNull: true,
+        defaultValue: [] // Default to empty array
     },
-    imageUrl: {
-        type: DataTypes.STRING,
+    imageUrls: {
+        type: DataTypes.JSON, // Array of strings
         allowNull: false,
+        defaultValue: []
     },
-    publicId: {
-        type: DataTypes.STRING,
+    publicIds: {
+        type: DataTypes.JSON, // Array of strings
         allowNull: false,
+        defaultValue: []
     },
     CategoryId: {
         type: DataTypes.INTEGER,
