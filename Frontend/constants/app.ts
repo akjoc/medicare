@@ -4,6 +4,7 @@
  */
 
 export const APP_CONFIG = {
-    NAME: "Medicare",
+    NAME: "Health Harbour",
     TAGLINE: "B2B Medicine Ordering",
+    WHATSAPP_NUMBER: "+918503830220",
 };

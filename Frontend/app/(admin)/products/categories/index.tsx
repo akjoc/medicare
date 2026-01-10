@@ -1,11 +1,10 @@
 import CategoryItem from "@/components/admin/categories/CategoryItem";
-import { Category } from "@/data/mockProducts";
-import { CategoryService } from "@/services/categoryService";
+import { Category, CategoryService } from "@/services/categoryService";
 import { colors } from "@/styles/colors";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
-import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 /**
  * CategoriesScreen
@@ -36,21 +35,47 @@ export default function CategoriesScreen() {
         }, [])
     );
 
-    const handleDelete = async (id: string) => {
-        // Optimistic update
-        setCategories(prev => prev.filter(c => c.id !== id));
-        await CategoryService.delete(id);
+    const handleDelete = (id: string, name: string) => {
+        Alert.alert(
+            "Delete Category",
+            `Are you sure you want to delete "${name}"?`,
+            [
+                {
+                    text: "No",
+                    style: "cancel",
+                },
+                {
+                    text: "Yes",
+                    style: "destructive",
+                    onPress: async () => {
+                        try {
+                            setLoading(true);
+                            await CategoryService.delete(id);
+                            await loadData();
+                        } catch (error) {
+                            Alert.alert("Error", "Failed to delete category");
+                            console.error(error);
+                            setLoading(false);
+                        }
+                    },
+                },
+            ]
+        );
     };
 
     const organizedCategories = useMemo(() => {
-        const roots = categories.filter(c => !c.parentId);
-        let result: Category[] = [];
-        roots.forEach(root => {
-            result.push(root);
-            const children = categories.filter(c => c.parentId === root.id);
-            result.push(...children);
-        });
-        return result;
+        const flattenCategories = (cats: Category[], level = 0): (Category & { level: number })[] => {
+            let result: (Category & { level: number })[] = [];
+            cats.forEach(cat => {
+                result.push({ ...cat, level });
+                if (cat.subCategories && cat.subCategories.length > 0) {
+                    result.push(...flattenCategories(cat.subCategories, level + 1));
+                }
+            });
+            return result;
+        };
+
+        return flattenCategories(categories);
     }, [categories]);
 
     if (loading) {
@@ -84,11 +109,11 @@ export default function CategoriesScreen() {
                 data={organizedCategories}
                 keyExtractor={(item) => item.id}
                 renderItem={({ item }) => (
-                    <View style={item.parentId ? { paddingLeft: 40 } : {}}>
+                    <View style={{ paddingLeft: (item as any).level * 20 }}>
                         <CategoryItem
                             category={item}
                             onPress={() => router.push(`/(admin)/products/categories/${item.id}`)}
-                            onDelete={() => handleDelete(item.id)}
+                            onDelete={() => handleDelete(item.id, item.name)}
                         />
                     </View>
                 )}

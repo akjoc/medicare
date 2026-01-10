@@ -1,9 +1,10 @@
 import RetailerForm from "@/components/admin/retailers/RetailerForm";
+import { Category, CategoryService } from "@/services/categoryService"; // Added import
 import { retailerService } from "@/services/retailer.service";
 import { colors } from "@/styles/colors";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 /**
@@ -15,6 +16,12 @@ import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 export default function CreateRetailerScreen() {
     const router = useRouter();
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [categories, setCategories] = useState<Category[]>([]); // State for categories
+
+    // Fetch categories on mount
+    useEffect(() => {
+        CategoryService.getAll().then(setCategories).catch(console.error);
+    }, []);
 
     const handleSubmit = async (data: any) => {
         setIsSubmitting(true);
@@ -42,7 +49,11 @@ export default function CreateRetailerScreen() {
                 <View style={{ width: 40 }} />
             </View>
 
-            <RetailerForm onSubmit={handleSubmit} isSubmitting={isSubmitting} />
+            <RetailerForm
+                onSubmit={handleSubmit}
+                isSubmitting={isSubmitting}
+                categories={categories}
+            />
         </View>
     );
 }

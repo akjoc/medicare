@@ -1,4 +1,4 @@
-import { Category, MOCK_CATEGORIES } from "@/data/mockProducts"; // Using mock data for parent dropdown
+import { Category, CategoryPayload } from "@/services/categoryService";
 import { colors } from "@/styles/colors";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -15,8 +15,9 @@ import {
 
 interface CategoryFormProps {
     initialValues?: Partial<Category>;
-    onSubmit: (data: Omit<Category, "id" | "productCount">) => Promise<void>;
+    onSubmit: (data: CategoryPayload) => Promise<void>;
     isSubmitting?: boolean;
+    categories?: Category[]; // List of existing categories for parent selection
 }
 
 /**
@@ -29,20 +30,39 @@ export default function CategoryForm({
     initialValues,
     onSubmit,
     isSubmitting = false,
+    categories = [],
 }: CategoryFormProps) {
     const router = useRouter();
-    const [formData, setFormData] = useState({
+    const [formData, setFormData] = useState<CategoryPayload>({
         name: initialValues?.name || "",
         description: initialValues?.description || "",
         parentId: initialValues?.parentId || null, // null means top-level
-        status: initialValues?.status || "active",
-        image: initialValues?.image || "",
     });
+
+    // Handle status separately if it's not part of the payload but needed for UI state (though type def doesn't have it, assuming it might be needed or was legacy)
+    // The previous code had "status" but the new payload definition might not. 
+    // Checking the previous file... it had status and image. 
+    // The new service payload only has name, description, parentId.
+    // I will stick to the service payload definition to avoid errors.
+    // If the user wants status/image they should create backend support first.
 
     const [errors, setErrors] = useState<Record<string, string>>({});
 
-    // Filter potential parents (exclude self if editing, and existing children to avoid loops - simple version: just exclude self)
-    const potentialParents = MOCK_CATEGORIES.filter(c => c.id !== initialValues?.id);
+    // Flatten generic category tree for dropdown
+    const allCategoriesFlat = (() => {
+        const flatten = (cats: Category[]): Category[] => {
+            let res: Category[] = [];
+            cats.forEach(c => {
+                res.push(c);
+                if (c.subCategories) res.push(...flatten(c.subCategories));
+            });
+            return res;
+        };
+        return flatten(categories);
+    })();
+
+    // Filter potential parents (exclude self if editing)
+    const potentialParents = allCategoriesFlat.filter(c => c.id !== initialValues?.id);
 
     const validate = () => {
         const newErrors: Record<string, string> = {};
@@ -54,7 +74,7 @@ export default function CategoryForm({
 
     const handleSubmit = async () => {
         if (validate()) {
-            await onSubmit(formData as any);
+            await onSubmit(formData);
         }
     };
 
@@ -85,20 +105,20 @@ export default function CategoryForm({
                     />
                 </View>
 
-                {/* Parent Category Selection (Simple List for now) */}
+                {/* Parent Category Selection */}
                 <View style={styles.inputContainer}>
                     <Text style={styles.label}>Parent Category</Text>
                     <View style={styles.optionList}>
                         <TouchableOpacity
                             style={[
                                 styles.optionItem,
-                                formData.parentId === null && styles.optionSelected,
+                                !formData.parentId && styles.optionSelected,
                             ]}
                             onPress={() => setFormData(prev => ({ ...prev, parentId: null }))}
                         >
                             <Text style={[
                                 styles.optionText,
-                                formData.parentId === null && styles.optionTextSelected
+                                !formData.parentId && styles.optionTextSelected
                             ]}>None (Top Level)</Text>
                         </TouchableOpacity>
 
@@ -117,24 +137,6 @@ export default function CategoryForm({
                                 ]}>{cat.name}</Text>
                             </TouchableOpacity>
                         ))}
-                    </View>
-                </View>
-
-                <View style={styles.inputContainer}>
-                    <Text style={styles.label}>Status</Text>
-                    <View style={styles.row}>
-                        <TouchableOpacity
-                            style={[styles.statusBtn, formData.status === "active" && styles.statusActive]}
-                            onPress={() => setFormData(prev => ({ ...prev, status: "active" }))}
-                        >
-                            <Text style={[styles.statusTxt, formData.status === "active" && styles.txtWhite]}>Active</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={[styles.statusBtn, formData.status === "inactive" && styles.statusInactive]}
-                            onPress={() => setFormData(prev => ({ ...prev, status: "inactive" }))}
-                        >
-                            <Text style={[styles.statusTxt, formData.status === "inactive" && styles.txtWhite]}>Inactive</Text>
-                        </TouchableOpacity>
                     </View>
                 </View>
             </View>
@@ -242,21 +244,6 @@ const styles = StyleSheet.create({
         color: colors.white,
         fontWeight: "600",
     },
-    row: {
-        flexDirection: "row",
-        gap: 12,
-    },
-    statusBtn: {
-        flex: 1,
-        padding: 12,
-        borderRadius: 8,
-        alignItems: "center",
-        backgroundColor: colors.background,
-    },
-    statusActive: { backgroundColor: "#28A745" },
-    statusInactive: { backgroundColor: "#DC3545" },
-    statusTxt: { fontWeight: "600", color: colors.textLight },
-    txtWhite: { color: colors.white },
     footer: {
         flexDirection: "row",
         gap: 16,

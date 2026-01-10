@@ -1,4 +1,5 @@
 import RetailerForm, { Retailer } from "@/components/admin/retailers/RetailerForm";
+import { Category, CategoryService } from "@/services/categoryService";
 import { retailerService } from "@/services/retailer.service";
 import { colors } from "@/styles/colors";
 import { Ionicons } from "@expo/vector-icons";
@@ -18,15 +19,20 @@ export default function EditRetailerScreen() {
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const [retailer, setRetailer] = useState<Retailer | null>(null);
+    const [categories, setCategories] = useState<Category[]>([]);
     const [loading, setLoading] = useState(true);
 
-    const fetchRetailer = async () => {
+    const fetchData = async () => {
         try {
             setLoading(true);
-            const data = await retailerService.getRetailerById(id as string);
-            setRetailer(data);
+            const [retailerData, categoriesData] = await Promise.all([
+                retailerService.getRetailerById(id as string),
+                CategoryService.getAll()
+            ]);
+            setRetailer(retailerData);
+            setCategories(categoriesData);
         } catch (error) {
-            console.error("Failed to fetch retailer", error);
+            console.error("Failed to fetch data", error);
         } finally {
             setLoading(false);
         }
@@ -34,7 +40,7 @@ export default function EditRetailerScreen() {
 
     useFocusEffect(
         useCallback(() => {
-            if (id) fetchRetailer();
+            if (id) fetchData();
             return () => { };
         }, [id])
     );
@@ -103,6 +109,7 @@ export default function EditRetailerScreen() {
                 initialValues={retailer}
                 onSubmit={handleSubmit}
                 isSubmitting={isSubmitting}
+                categories={categories}
             />
         </View>
     );

@@ -1,21 +1,30 @@
 import CategoryForm from "@/components/admin/categories/CategoryForm";
-import { Category } from "@/data/mockProducts";
-import { CategoryService } from "@/services/categoryService";
+import { Category, CategoryPayload, CategoryService } from "@/services/categoryService";
 import { colors } from "@/styles/colors";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 export default function CreateCategoryScreen() {
     const router = useRouter();
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [categories, setCategories] = useState<Category[]>([]);
 
-    const handleSubmit = async (data: Omit<Category, "id" | "productCount">) => {
+    useEffect(() => {
+        CategoryService.getAll().then(setCategories).catch(console.error);
+    }, []);
+
+    const handleSubmit = async (data: CategoryPayload) => {
         setIsSubmitting(true);
-        await CategoryService.create(data);
-        setIsSubmitting(false);
-        router.back();
+        try {
+            await CategoryService.create(data);
+            router.back();
+        } catch (error) {
+            console.error("Failed to create category", error);
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     return (
@@ -28,7 +37,11 @@ export default function CreateCategoryScreen() {
                 <View style={{ width: 40 }} />
             </View>
 
-            <CategoryForm onSubmit={handleSubmit} isSubmitting={isSubmitting} />
+            <CategoryForm
+                onSubmit={handleSubmit}
+                isSubmitting={isSubmitting}
+                categories={categories}
+            />
         </View>
     );
 }

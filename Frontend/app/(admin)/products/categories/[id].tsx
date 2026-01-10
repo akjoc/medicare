@@ -1,6 +1,5 @@
 import CategoryForm from "@/components/admin/categories/CategoryForm";
-import { Category } from "@/data/mockProducts";
-import { CategoryService } from "@/services/categoryService";
+import { Category, CategoryPayload, CategoryService } from "@/services/categoryService";
 import { colors } from "@/styles/colors";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -12,25 +11,39 @@ export default function EditCategoryScreen() {
     const router = useRouter();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [category, setCategory] = useState<Category | null>(null);
+    const [categories, setCategories] = useState<Category[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const fetchCategory = async () => {
-            if (typeof id === 'string') {
-                const data = await CategoryService.getById(id);
-                setCategory(data || null);
+        const loadData = async () => {
+            if (typeof id !== 'string') return;
+            try {
+                const [categoryData, allCategories] = await Promise.all([
+                    CategoryService.getById(id),
+                    CategoryService.getAll()
+                ]);
+                setCategory(categoryData);
+                setCategories(allCategories);
+            } catch (error) {
+                console.error("Failed to load category data", error);
+            } finally {
+                setLoading(false);
             }
-            setLoading(false);
         };
-        fetchCategory();
+        loadData();
     }, [id]);
 
-    const handleSubmit = async (data: Omit<Category, "id" | "productCount">) => {
+    const handleSubmit = async (data: CategoryPayload) => {
         if (!id) return;
         setIsSubmitting(true);
-        await CategoryService.update(id as string, data);
-        setIsSubmitting(false);
-        router.back();
+        try {
+            await CategoryService.update(id as string, data);
+            router.back();
+        } catch (error) {
+            console.error("Failed to update category", error);
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     if (loading) {
@@ -72,6 +85,7 @@ export default function EditCategoryScreen() {
                 initialValues={category}
                 onSubmit={handleSubmit}
                 isSubmitting={isSubmitting}
+                categories={categories}
             />
         </View>
     );

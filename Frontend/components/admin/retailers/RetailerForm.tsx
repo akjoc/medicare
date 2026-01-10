@@ -28,13 +28,20 @@ export interface Retailer {
     status: "active" | "inactive";
     joinedDate: string;
     gst?: string;
+    rating?: number;
+    categoryIds?: string[];
 }
+
+import { Category } from "@/services/categoryService";
+
+// ... existing imports
 
 // Props for the RetailerForm component
 interface RetailerFormProps {
     initialValues?: Partial<Retailer>; // Values for editing mode
     onSubmit: (data: any) => Promise<void>; // Submit handler
     isSubmitting?: boolean; // Loading state
+    categories?: Category[]; // Available categories for selection
 }
 
 /**
@@ -47,6 +54,7 @@ export default function RetailerForm({
     initialValues,
     onSubmit,
     isSubmitting = false,
+    categories = [],
 }: RetailerFormProps) {
     const router = useRouter();
     const [formData, setFormData] = useState({
@@ -62,6 +70,8 @@ export default function RetailerForm({
         password: "",
         status: initialValues?.status || "active",
         gst: initialValues?.gst || "",
+        rating: initialValues?.rating?.toString() || "5",
+        categoryIds: initialValues?.categoryIds || [],
     });
 
     const [errors, setErrors] = useState<Record<string, string>>({});
@@ -122,16 +132,29 @@ export default function RetailerForm({
                 drugLicenseNumber: formData.drugLicenseNumber || "",
                 gst: formData.gst || "",
                 password: formData.password || "",
+                rating: parseFloat(formData.rating) || 5,
+                categoryIds: formData.categoryIds,
             };
             await onSubmit(payload);
         }
     };
 
+    const toggleCategory = (catId: string) => {
+        setFormData(prev => {
+            const currentIds = prev.categoryIds || [];
+            if (currentIds.includes(catId)) {
+                return { ...prev, categoryIds: currentIds.filter(id => id !== catId) };
+            } else {
+                return { ...prev, categoryIds: [...currentIds, catId] };
+            }
+        });
+    };
+
     const renderInput = (
         label: string,
-        field: keyof typeof formData,
+        field: keyof Omit<typeof formData, "categoryIds">, // Exclude array types
         placeholder: string,
-        keyboardType: "default" | "email-address" | "phone-pad" = "default",
+        keyboardType: "default" | "email-address" | "phone-pad" | "numeric" = "default",
         multiline = false,
         secureTextEntry = false,
         required = false
@@ -142,10 +165,10 @@ export default function RetailerForm({
                 style={[
                     styles.input,
                     multiline && styles.textArea,
-                    errors[field] && styles.inputError,
+                    errors[field as string] && styles.inputError,
                 ]}
-                value={formData[field]}
-                onChangeText={(text) => handleInputChange(field, text)}
+                value={String(formData[field])} // Ensure string
+                onChangeText={(text) => handleInputChange(field as string, text)}
                 placeholder={placeholder}
                 placeholderTextColor={colors.textLight}
                 keyboardType={keyboardType}
@@ -153,9 +176,22 @@ export default function RetailerForm({
                 autoCapitalize={field === "email" ? "none" : "words"}
                 secureTextEntry={secureTextEntry}
             />
-            {errors[field] && <Text style={styles.errorText}>{errors[field]}</Text>}
+            {errors[field as string] && <Text style={styles.errorText}>{errors[field as string]}</Text>}
         </View>
     );
+
+    // Flatten generic category tree for selection list
+    const allCategoriesFlat = (() => {
+        const flatten = (cats: Category[]): Category[] => {
+            let res: Category[] = [];
+            cats.forEach(c => {
+                res.push(c);
+                if (c.subCategories) res.push(...flatten(c.subCategories));
+            });
+            return res;
+        };
+        return flatten(categories);
+    })();
 
     return (
         <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
@@ -172,6 +208,44 @@ export default function RetailerForm({
                 {renderInput("Email Address", "email", "rahul.sharma@example.com", "email-address", false, false, true)}
                 {renderInput("Phone Number", "phone", "9876543210", "phone-pad", false, false, true)}
                 {renderInput("Password", "password", "********", "default", false, true, !initialValues)}
+                {renderInput("Rating (0-5)", "rating", "5", "numeric")}
+            </View>
+
+            <View style={styles.card}>
+                <View style={styles.sectionHeader}>
+                    <View style={styles.sectionIcon}>
+                        <Ionicons name="grid-outline" size={24} color={colors.primary} />
+                    </View>
+                    <Text style={styles.sectionTitle}>Assigned Categories</Text>
+                </View>
+
+                <View style={styles.categoryList}>
+                    {allCategoriesFlat.map(cat => (
+                        <TouchableOpacity
+                            key={cat.id}
+                            style={[
+                                styles.categoryItem,
+                                formData.categoryIds.includes(cat.id) && styles.categoryItemSelected
+                            ]}
+                            onPress={() => toggleCategory(cat.id)}
+                        >
+                            <Ionicons
+                                name={formData.categoryIds.includes(cat.id) ? "checkbox" : "square-outline"}
+                                size={20}
+                                color={formData.categoryIds.includes(cat.id) ? colors.primary : colors.textLight}
+                            />
+                            <Text style={[
+                                styles.categoryText,
+                                formData.categoryIds.includes(cat.id) && styles.categoryTextSelected
+                            ]}>
+                                {cat.name}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                    {allCategoriesFlat.length === 0 && (
+                        <Text style={styles.noCategoriesText}>No categories available</Text>
+                    )}
+                </View>
             </View>
 
             <View style={styles.card}>
@@ -424,5 +498,37 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: "600",
         color: colors.white,
+    },
+    categoryList: {
+        flexDirection: "row",
+        flexWrap: "wrap",
+        gap: 8,
+    },
+    categoryItem: {
+        flexDirection: "row",
+        alignItems: "center",
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        borderRadius: 20,
+        backgroundColor: colors.background,
+        borderWidth: 1,
+        borderColor: colors.border,
+        gap: 6,
+    },
+    categoryItemSelected: {
+        borderColor: colors.primary,
+        backgroundColor: `${colors.primary}10`,
+    },
+    categoryText: {
+        fontSize: 14,
+        color: colors.textDark,
+    },
+    categoryTextSelected: {
+        color: colors.primary,
+        fontWeight: "500",
+    },
+    noCategoriesText: {
+        color: colors.textLight,
+        fontStyle: "italic",
     },
 });

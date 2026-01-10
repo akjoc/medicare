@@ -1,4 +1,4 @@
-import { Category } from "@/data/mockProducts";
+import { Category } from "@/services/categoryService";
 import { colors } from "@/styles/colors";
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";

@@ -11,12 +11,28 @@ interface ProductCardProps {
 }
 
 export default function ProductCard({ product, onPress }: ProductCardProps) {
-    const { addToCart } = useCart();
+    const { addToCart, getItemQuantity, updateQuantity } = useCart();
     const hasImage = product.images && product.images.length > 0;
     const isOutOfStock = product.status === "out_of_stock";
 
+    // Get quantity from cart context
+    const quantity = getItemQuantity(product.id);
+
     const handleAddToCart = () => {
         addToCart(product);
+    };
+
+    const handleUpdateQuantity = (newQty: number) => {
+        updateQuantity(product.id, newQty);
+    };
+
+    const handleQuantityTextChange = (text: string) => {
+        const qty = parseInt(text);
+        if (!isNaN(qty)) {
+            updateQuantity(product.id, qty);
+        } else if (text === "") {
+            // Optional: Handle empty input if needed, but safer to do nothing or set to 0
+        }
     };
 
     return (
@@ -65,19 +81,19 @@ export default function ProductCard({ product, onPress }: ProductCardProps) {
                     {isOutOfStock ? (
                         <Text style={styles.outOfStockText}>Out of Stock</Text>
                     ) : (
-                        <Text style={styles.stockText}>In Stock</Text>
-                    )}
+                        <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Text style={styles.stockText}>In Stock</Text>
 
-                    {!isOutOfStock && (
-                        <TouchableOpacity
-                            style={styles.addButton}
-                            onPress={(e) => {
-                                e.stopPropagation();
-                                handleAddToCart();
-                            }}
-                        >
-                            <Ionicons name="add" size={20} color={colors.white} />
-                        </TouchableOpacity>
+                            <TouchableOpacity
+                                style={styles.addButton}
+                                onPress={(e) => {
+                                    e.stopPropagation();
+                                    handleAddToCart();
+                                }}
+                            >
+                                <Ionicons name="add" size={20} color={colors.white} />
+                            </TouchableOpacity>
+                        </View>
                     )}
                 </View>
             </View>
@@ -168,6 +184,7 @@ const styles = StyleSheet.create({
         alignItems: "center",
         justifyContent: "space-between",
         marginTop: 4,
+        minHeight: 32, // Reserve space
     },
     stockText: {
         fontSize: 12,

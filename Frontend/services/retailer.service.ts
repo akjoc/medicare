@@ -14,6 +14,8 @@ export interface RetailerPayload {
     gst?: string;
     password: string;
     status: "active" | "inactive";
+    rating?: number;
+    categoryIds?: string[];
 }
 
 export const retailerService = {

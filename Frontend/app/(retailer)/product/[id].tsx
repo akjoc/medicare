@@ -1,3 +1,5 @@
+import QuantitySelector from "@/components/retailer/QuantitySelector";
+import { useCart } from "@/context/CartContext";
 import { MOCK_CATEGORIES, MOCK_PRODUCTS } from "@/data/mockProducts";
 import { colors } from "@/styles/colors";
 import { Ionicons } from "@expo/vector-icons";
@@ -12,6 +14,7 @@ export default function ProductDetailsScreen() {
     const { id } = useLocalSearchParams();
     const router = useRouter();
     const [activeSlide, setActiveSlide] = useState(0);
+    const { addToCart, getItemQuantity, updateQuantity } = useCart();
 
     const product = MOCK_PRODUCTS.find(p => p.id === id);
     const category = product ? MOCK_CATEGORIES.find(c => c.id === product.categoryId) : null;
@@ -26,6 +29,24 @@ export default function ProductDetailsScreen() {
 
     const hasImages = product.images && product.images.length > 0;
     const isOutOfStock = product.status === "out_of_stock";
+
+    // Get current quantity
+    const quantity = getItemQuantity(product.id);
+
+    const handleAddToCart = () => {
+        addToCart(product);
+    };
+
+    const handleUpdateQuantity = (newQty: number) => {
+        updateQuantity(product.id, newQty);
+    };
+
+    const handleQuantityTextChange = (text: string) => {
+        const qty = parseInt(text);
+        if (!isNaN(qty)) {
+            updateQuantity(product.id, qty);
+        }
+    };
 
     return (
         <View style={styles.container}>
@@ -146,15 +167,35 @@ export default function ProductDetailsScreen() {
 
             {/* Bottom Action Bar */}
             <View style={styles.footer}>
-                <TouchableOpacity
-                    style={[styles.addToCartButton, isOutOfStock && styles.disabledButton]}
-                    disabled={isOutOfStock}
-                >
-                    <Ionicons name="cart-outline" size={24} color={colors.white} />
-                    <Text style={styles.addToCartText}>
-                        {isOutOfStock ? "Out of Stock" : "Add to Cart"}
-                    </Text>
-                </TouchableOpacity>
+                {isOutOfStock ? (
+                    <TouchableOpacity
+                        style={[styles.addToCartButton, styles.disabledButton]}
+                        disabled={true}
+                    >
+                        <Text style={styles.addToCartText}>Out of Stock</Text>
+                    </TouchableOpacity>
+                ) : quantity > 0 ? (
+                    <View style={styles.quantityContainer}>
+                        <View style={{ flex: 1 }}>
+                            <Text style={styles.quantityLabel}>Quantity</Text>
+                            <Text style={styles.quantityTotal}>Total: ₹{(product.salePrice || product.price) * quantity}</Text>
+                        </View>
+                        <QuantitySelector
+                            quantity={quantity}
+                            onIncrease={() => handleUpdateQuantity(quantity + 1)}
+                            onDecrease={() => handleUpdateQuantity(quantity - 1)}
+                            onChangeText={handleQuantityTextChange}
+                        />
+                    </View>
+                ) : (
+                    <TouchableOpacity
+                        style={styles.addToCartButton}
+                        onPress={handleAddToCart}
+                    >
+                        <Ionicons name="cart-outline" size={24} color={colors.white} />
+                        <Text style={styles.addToCartText}>Add to Cart</Text>
+                    </TouchableOpacity>
+                )}
             </View>
         </View>
     );
@@ -379,5 +420,24 @@ const styles = StyleSheet.create({
         color: colors.white,
         fontSize: 18,
         fontWeight: "600",
+    },
+    quantityContainer: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        backgroundColor: colors.background, // Light bg for the bar
+        padding: 12,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: colors.border,
+    },
+    quantityLabel: {
+        fontSize: 14,
+        color: colors.textLight,
+    },
+    quantityTotal: {
+        fontSize: 16,
+        fontWeight: "700",
+        color: colors.primary,
     },
 });
