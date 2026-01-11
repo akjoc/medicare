@@ -18,6 +18,8 @@ const createRetailer = async (req, res) => {
             gst,
             rating,
             password,
+            status,
+            isActive,
             categoryIds // Array of Category IDs
         } = req.body;
 
@@ -67,9 +69,11 @@ const createRetailer = async (req, res) => {
             city,
             state,
             zipCode,
-            drugLicenseNumber,
-            gst,
+            drugLicenseNumber: drugLicenseNumber === "" ? null : drugLicenseNumber,
+            gst: gst === "" ? null : gst,
             rating,
+            status,
+            isActive: status === 'inactive' ? false : (isActive !== undefined ? isActive : true),
             UserId: user.id
         });
 
@@ -195,7 +199,20 @@ const updateRetailer = async (req, res) => {
             }
 
             // check duplicate email/license logic should optimally be here too if those fields change
-            await retailer.update(req.body);
+            // Sanitize body for Unique constraints (empty string -> null)
+            const updates = { ...req.body };
+            if (updates.drugLicenseNumber === "") updates.drugLicenseNumber = null;
+            if (updates.gst === "") updates.gst = null;
+
+            // Handle Status/isActive sync
+            if (updates.status === 'inactive') {
+                updates.isActive = false;
+            } else if (updates.status === 'active' && updates.isActive === undefined) {
+                // If setting to active but didn't specify isActive, assume true
+                updates.isActive = true;
+            }
+
+            await retailer.update(updates);
 
             // Update categories if provided
             if (req.body.categoryIds && Array.isArray(req.body.categoryIds)) {

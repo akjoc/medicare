@@ -93,19 +93,24 @@ const getAllCategories = async (req, res) => {
             const retailer = await Retailer.findOne({ where: { UserId: req.user.id } });
             if (retailer) {
                 const allowedCategories = await retailer.getCategories();
-                const allowedParentIds = allowedCategories.map(cat => cat.id);
 
-                // Fetch ALL categories for recursive expansion
-                // Note: We need all categories anyway to check descendants. 
-                // We should optimistically fetch everything once if the DB isn't huge, which is what getAllCategories does anyway implicitly?
-                // Actually getAllCategories fetches 'categories' flat later. We can reuse that if we reorder logic.
-                // But let's stick to explicit robust expansion.
-                const allCats = await Category.findAll({ attributes: ['id', 'parentId'] });
-                const plainAllCats = allCats.map(c => c.get({ plain: true }));
+                // Logic Change: If retailer has NO assigned categories, they see ALL categories.
+                // Only filter if they actually have assignments.
+                if (allowedCategories && allowedCategories.length > 0) {
+                    const allowedParentIds = allowedCategories.map(cat => cat.id);
 
-                const expandedCategoryIds = getDescendantCategoryIds(plainAllCats, allowedParentIds);
+                    // Fetch ALL categories for recursive expansion
+                    // Note: We need all categories anyway to check descendants. 
+                    // We should optimistically fetch everything once if the DB isn't huge, which is what getAllCategories does anyway implicitly?
+                    // Actually getAllCategories fetches 'categories' flat later. We can reuse that if we reorder logic.
+                    // But let's stick to explicit robust expansion.
+                    const allCats = await Category.findAll({ attributes: ['id', 'parentId'] });
+                    const plainAllCats = allCats.map(c => c.get({ plain: true }));
 
-                whereClause = { id: expandedCategoryIds };
+                    const expandedCategoryIds = getDescendantCategoryIds(plainAllCats, allowedParentIds);
+
+                    whereClause = { id: expandedCategoryIds };
+                }
             }
         }
 

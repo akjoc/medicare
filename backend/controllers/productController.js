@@ -9,7 +9,7 @@ const xlsx = require('xlsx');
 // Create Product
 const createProduct = async (req, res) => {
     try {
-        const { name, description, price, buyingPrice, salePrice, companies, stock, categoryId, salt } = req.body;
+        const { name, description, price, buyingPrice, salePrice, companies, stock, categoryId, salt, sku } = req.body;
 
         // Check if files are uploaded
         if (!req.files || req.files.length === 0) {
@@ -49,6 +49,7 @@ const createProduct = async (req, res) => {
 
         const product = await Product.create({
             name,
+            sku,
             description,
             price,
             buyingPrice,
@@ -91,26 +92,31 @@ const getAllProducts = async (req, res) => {
             const retailer = await Retailer.findOne({ where: { UserId: req.user.id } });
             if (retailer) {
                 const allowedCategories = await retailer.getCategories();
-                const allowedParentIds = allowedCategories.map(cat => cat.id);
 
-                // Fetch ALL categories for recursive expansion
-                const allCategories = await Category.findAll({ attributes: ['id', 'parentId'] });
-                const plainAllCategories = allCategories.map(c => c.get({ plain: true }));
+                // If Retailer has NO assigned categories, they get FULL ACCESS (Design Decision)
+                if (allowedCategories && allowedCategories.length > 0) {
+                    const allowedParentIds = allowedCategories.map(cat => cat.id);
 
-                // Expand to include children
-                const expandedCategoryIds = getDescendantCategoryIds(plainAllCategories, allowedParentIds);
+                    // Fetch ALL categories for recursive expansion
+                    const allCategories = await Category.findAll({ attributes: ['id', 'parentId'] });
+                    const plainAllCategories = allCategories.map(c => c.get({ plain: true }));
 
-                // If using simple 'where', we might overwrite the search 'where'.
-                // Need to merge them carefully.
-                if (!queryOptions.where) queryOptions.where = {};
+                    // Expand to include children
+                    const expandedCategoryIds = getDescendantCategoryIds(plainAllCategories, allowedParentIds);
 
-                // Op.and ensures both conditions must be met (Search + Permission)
-                queryOptions.where = {
-                    [Op.and]: [
-                        queryOptions.where,
-                        { CategoryId: { [Op.in]: expandedCategoryIds } }
-                    ]
-                };
+                    // If using simple 'where', we might overwrite the search 'where'.
+                    // Need to merge them carefully.
+                    if (!queryOptions.where) queryOptions.where = {};
+
+                    // Op.and ensures both conditions must be met (Search + Permission)
+                    queryOptions.where = {
+                        [Op.and]: [
+                            queryOptions.where,
+                            { CategoryId: { [Op.in]: expandedCategoryIds } }
+                        ]
+                    };
+                }
+                // Else: Do nothing, let them see all products
             }
         }
 
@@ -138,7 +144,7 @@ const getProductById = async (req, res) => {
 // Update Product
 const updateProduct = async (req, res) => {
     try {
-        const { name, description, price, buyingPrice, salePrice, companies, stock, categoryId, salt } = req.body;
+        const { name, description, price, buyingPrice, salePrice, companies, stock, categoryId, salt, sku } = req.body;
         const product = await Product.findByPk(req.params.id);
 
         if (!product) {
@@ -158,6 +164,7 @@ const updateProduct = async (req, res) => {
 
         let updatedData = {
             name,
+            sku,
             description,
             price,
             buyingPrice,
@@ -307,6 +314,13 @@ const bulkUploadProducts = async (req, res) => {
                 // Normalize keys & Handle User-Specific Columns
                 const name = row.Name || row.name || row['product name'];
 
+                // SKU Logic: User provided or Auto-generate
+                let sku = row.sku || row.SKU || row.Sku;
+                if (!sku) {
+                    // Auto-generate: SKU-TIMESTAMP-RANDOM
+                    sku = `SKU-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+                }
+
                 // Helper to clean price: "13.35/amp." -> 13.35
                 const cleanPrice = (val) => {
                     if (!val) return null;
@@ -427,8 +441,9 @@ const bulkUploadProducts = async (req, res) => {
 
                 await Product.create({
                     name,
+                    sku, // Add SKU
                     description: finalDescription,
-                    price,
+                    price: price || 0, // Fallback
                     buyingPrice: buyingPrice || null,
                     salePrice: salePrice || null,
                     companies: companies, // Array
