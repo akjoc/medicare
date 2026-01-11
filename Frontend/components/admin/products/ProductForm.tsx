@@ -1,10 +1,13 @@
-import { MOCK_CATEGORIES, Product } from "@/data/mockProducts";
+import { Product } from "@/data/mockProducts";
+import { CategoryService } from "@/services/categoryService";
 import { colors } from "@/styles/colors";
 import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
     ActivityIndicator,
+    Alert,
     Image,
     ScrollView,
     StyleSheet,
@@ -28,7 +31,7 @@ export default function ProductForm({
     const router = useRouter();
     const [formData, setFormData] = useState({
         name: initialValues?.name || "",
-        categoryId: initialValues?.categoryId || "",
+        categoryIds: initialValues?.categoryIds || [],
         price: initialValues?.price?.toString() || "",
         salePrice: initialValues?.salePrice?.toString() || "",
         stock: initialValues?.stock?.toString() || "",
@@ -36,17 +39,55 @@ export default function ProductForm({
         sku: initialValues?.sku || "",
         status: initialValues?.status || "active",
         images: initialValues?.images || [],
+        salt: initialValues?.salt || [],
+        company: initialValues?.company || "",
+        buyingPrice: initialValues?.buyingPrice?.toString() || "",
     });
 
     const [errors, setErrors] = useState<Record<string, string>>({});
+    const [categories, setCategories] = useState<any[]>([]);
+    const [loadingCategories, setLoadingCategories] = useState(true);
+    const [uploadingImage, setUploadingImage] = useState(false);
+
+    // New states for adding salt
+    const [newSalt, setNewSalt] = useState("");
+
+    useEffect(() => {
+        fetchCategories();
+    }, []);
+
+    const fetchCategories = async () => {
+        try {
+            const data = await CategoryService.getAll();
+            // Flatten the nested category structure to show all categories (parent + sub)
+            const flattenCategories = (cats: any[]): any[] => {
+                let result: any[] = [];
+                cats.forEach(cat => {
+                    result.push(cat);
+                    if (cat.subCategories && cat.subCategories.length > 0) {
+                        result = result.concat(flattenCategories(cat.subCategories));
+                    }
+                });
+                return result;
+            };
+            const allCategories = flattenCategories(data);
+            setCategories(allCategories);
+        } catch (error) {
+            console.error("Failed to fetch categories", error);
+            Alert.alert("Error", "Failed to load categories");
+        } finally {
+            setLoadingCategories(false);
+        }
+    };
 
     const validate = () => {
         const newErrors: Record<string, string> = {};
         if (!formData.name.trim()) newErrors.name = "Product name is required";
-        if (!formData.categoryId) newErrors.categoryId = "Category is required";
+        if (formData.categoryIds.length === 0) newErrors.categoryIds = "At least one category is required";
         if (!formData.price || isNaN(Number(formData.price))) newErrors.price = "Valid price is required";
         if (!formData.stock || isNaN(Number(formData.stock))) newErrors.stock = "Valid stock is required";
         if (!formData.sku.trim()) newErrors.sku = "SKU is required";
+        if (formData.buyingPrice && isNaN(Number(formData.buyingPrice))) newErrors.buyingPrice = "Valid buying price is required";
 
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
@@ -59,21 +100,72 @@ export default function ProductForm({
                 price: Number(formData.price),
                 salePrice: formData.salePrice ? Number(formData.salePrice) : undefined,
                 stock: Number(formData.stock),
-                categoryId: formData.categoryId,
+                categoryIds: formData.categoryIds,
                 status: formData.status as any,
                 images: formData.images,
+                salt: formData.salt.length > 0 ? formData.salt : undefined,
+                company: formData.company || undefined,
+                buyingPrice: formData.buyingPrice ? Number(formData.buyingPrice) : undefined,
             });
         }
     };
 
-    const handleAddImageMock = () => {
-        // Mocking image selection
-        const mockImages = [
-            "https://via.placeholder.com/150",
-            "https://via.placeholder.com/150/0000FF/808080",
-        ];
-        const randomImage = mockImages[Math.floor(Math.random() * mockImages.length)];
-        setFormData(prev => ({ ...prev, images: [...prev.images, randomImage] }));
+    const pickImage = async () => {
+        if (formData.images.length >= 5) {
+            Alert.alert("Limit Reached", "You can only upload up to 5 images");
+            return;
+        }
+
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+            Alert.alert('Permission Required', 'Please grant camera roll permissions to upload images');
+            return;
+        }
+
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true,
+            aspect: [1, 1],
+            quality: 0.8,
+        });
+
+        if (!result.canceled && result.assets[0]) {
+            const uri = result.assets[0].uri;
+            const fileExtension = uri.split('.').pop()?.toLowerCase();
+
+            if (!fileExtension || !['jpg', 'jpeg', 'png'].includes(fileExtension)) {
+                Alert.alert("Invalid Format", "Only JPG and PNG images are allowed");
+                return;
+            }
+
+            // Show loading state briefly to give feedback
+            setUploadingImage(true);
+            setTimeout(() => {
+                setFormData(prev => ({ ...prev, images: [...prev.images, uri] }));
+                setUploadingImage(false);
+            }, 500);
+        }
+    };
+
+    const removeImage = (index: number) => {
+        setFormData(prev => ({
+            ...prev,
+            images: prev.images.filter((_, i) => i !== index)
+        }));
+    };
+
+    const addSalt = () => {
+        if (newSalt.trim()) {
+            setFormData(prev => ({ ...prev, salt: [...prev.salt, newSalt.trim()] }));
+            setNewSalt("");
+        }
+    };
+
+    const removeSalt = (index: number) => {
+        setFormData(prev => ({
+            ...prev,
+            salt: prev.salt.filter((_, i) => i !== index)
+        }));
     };
 
     return (
@@ -96,25 +188,39 @@ export default function ProductForm({
                 </View>
 
                 <View style={styles.inputContainer}>
-                    <Text style={styles.label}>Category <Text style={styles.required}>*</Text></Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
-                        {MOCK_CATEGORIES.map(cat => (
-                            <TouchableOpacity
-                                key={cat.id}
-                                style={[
-                                    styles.categoryChip,
-                                    formData.categoryId === cat.id && styles.categoryChipSelected
-                                ]}
-                                onPress={() => setFormData(prev => ({ ...prev, categoryId: cat.id }))}
-                            >
-                                <Text style={[
-                                    styles.categoryChipText,
-                                    formData.categoryId === cat.id && styles.categoryChipTextSelected
-                                ]}>{cat.name}</Text>
-                            </TouchableOpacity>
-                        ))}
-                    </ScrollView>
-                    {errors.categoryId && <Text style={styles.errorText}>{errors.categoryId}</Text>}
+                    <Text style={styles.label}>Categories <Text style={styles.required}>*</Text> (Multi-select)</Text>
+                    {loadingCategories ? (
+                        <ActivityIndicator size="small" color={colors.primary} />
+                    ) : (
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
+                            {categories.map(cat => {
+                                const isSelected = formData.categoryIds.includes(cat.id);
+                                return (
+                                    <TouchableOpacity
+                                        key={cat.id}
+                                        style={[
+                                            styles.categoryChip,
+                                            isSelected && styles.categoryChipSelected
+                                        ]}
+                                        onPress={() => {
+                                            setFormData(prev => ({
+                                                ...prev,
+                                                categoryIds: isSelected
+                                                    ? prev.categoryIds.filter(id => id !== cat.id)
+                                                    : [...prev.categoryIds, cat.id]
+                                            }));
+                                        }}
+                                    >
+                                        <Text style={[
+                                            styles.categoryChipText,
+                                            isSelected && styles.categoryChipTextSelected
+                                        ]}>{cat.name}</Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </ScrollView>
+                    )}
+                    {errors.categoryIds && <Text style={styles.errorText}>{errors.categoryIds}</Text>}
                 </View>
 
                 <View style={styles.row}>
@@ -141,6 +247,71 @@ export default function ProductForm({
                             placeholderTextColor={colors.textLight}
                         />
                     </View>
+                </View>
+            </View>
+
+            {/* Salt Section */}
+            <View style={styles.card}>
+                <View style={styles.sectionHeader}>
+                    <Text style={styles.sectionTitle}>Chemical Composition (Salt)</Text>
+                </View>
+
+                <View style={styles.addItemRow}>
+                    <TextInput
+                        style={[styles.input, { flex: 1 }]}
+                        value={newSalt}
+                        onChangeText={setNewSalt}
+                        placeholder="e.g., Acetaminophen"
+                        placeholderTextColor={colors.textLight}
+                    />
+                    <TouchableOpacity style={styles.addButton} onPress={addSalt}>
+                        <Ionicons name="add" size={20} color={colors.white} />
+                    </TouchableOpacity>
+                </View>
+
+                <View style={styles.chipContainer}>
+                    {formData.salt.map((item, index) => (
+                        <View key={index} style={styles.chip}>
+                            <Text style={styles.chipText}>{item}</Text>
+                            <TouchableOpacity onPress={() => removeSalt(index)}>
+                                <Ionicons name="close-circle" size={18} color={colors.textLight} />
+                            </TouchableOpacity>
+                        </View>
+                    ))}
+                    {formData.salt.length === 0 && (
+                        <Text style={styles.emptyText}>No salt added yet</Text>
+                    )}
+                </View>
+            </View>
+
+            {/* Companies Section - Simplified to single input */}
+            <View style={styles.card}>
+                <View style={styles.sectionHeader}>
+                    <Text style={styles.sectionTitle}>Company Information</Text>
+                </View>
+
+                <View style={styles.inputContainer}>
+                    <Text style={styles.label}>Company Name</Text>
+                    <TextInput
+                        style={styles.input}
+                        value={formData.company}
+                        onChangeText={(text) => setFormData(prev => ({ ...prev, company: text }))}
+                        placeholder="e.g., Healthcare Corp"
+                        placeholderTextColor={colors.textLight}
+                    />
+                </View>
+
+                <View style={styles.inputContainer}>
+                    <Text style={styles.label}>Buying Price</Text>
+                    <TextInput
+                        style={[styles.input, errors.buyingPrice && styles.inputError]}
+                        value={formData.buyingPrice}
+                        onChangeText={(text) => setFormData(prev => ({ ...prev, buyingPrice: text }))}
+                        placeholder="0.00"
+                        keyboardType="numeric"
+                        placeholderTextColor={colors.textLight}
+                    />
+                    {errors.buyingPrice && <Text style={styles.errorText}>{errors.buyingPrice}</Text>}
                 </View>
             </View>
 
@@ -190,28 +361,35 @@ export default function ProductForm({
 
             <View style={styles.card}>
                 <View style={styles.sectionHeader}>
-                    <Text style={styles.sectionTitle}>Images</Text>
-                    <TouchableOpacity onPress={handleAddImageMock}>
-                        <Text style={styles.addLink}>+ Add Image</Text>
+                    <Text style={styles.sectionTitle}>Images ({formData.images.length}/5)</Text>
+                    <TouchableOpacity onPress={pickImage} disabled={uploadingImage || formData.images.length >= 5}>
+                        <Text style={[styles.addLink, (uploadingImage || formData.images.length >= 5) && styles.addLinkDisabled]}>
+                            + Add Image
+                        </Text>
                     </TouchableOpacity>
                 </View>
+
+                {uploadingImage && (
+                    <View style={styles.uploadingContainer}>
+                        <ActivityIndicator size="small" color={colors.primary} />
+                        <Text style={styles.uploadingText}>Loading image...</Text>
+                    </View>
+                )}
+
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                     {formData.images.map((img, index) => (
                         <View key={index} style={styles.imageWrapper}>
                             <Image source={{ uri: img }} style={styles.productImage} />
                             <TouchableOpacity
                                 style={styles.removeImage}
-                                onPress={() => setFormData(prev => ({
-                                    ...prev,
-                                    images: prev.images.filter((_, i) => i !== index)
-                                }))}
+                                onPress={() => removeImage(index)}
                             >
                                 <Ionicons name="close-circle" size={24} color="#DC3545" />
                             </TouchableOpacity>
                         </View>
                     ))}
-                    {formData.images.length === 0 && (
-                        <Text style={styles.noImages}>No images added yet.</Text>
+                    {formData.images.length === 0 && !uploadingImage && (
+                        <Text style={styles.noImages}>No images added yet. (Max 5, jpg/png only)</Text>
                     )}
                 </ScrollView>
             </View>
@@ -298,6 +476,9 @@ const styles = StyleSheet.create({
         color: colors.primary,
         fontWeight: "600",
     },
+    addLinkDisabled: {
+        color: colors.textLight,
+    },
     inputContainer: {
         marginBottom: 16,
     },
@@ -359,6 +540,73 @@ const styles = StyleSheet.create({
         color: colors.white,
         fontWeight: "600",
     },
+    addItemRow: {
+        flexDirection: "row",
+        gap: 12,
+        marginBottom: 16,
+    },
+    addButton: {
+        width: 48,
+        height: 48,
+        borderRadius: 8,
+        backgroundColor: colors.primary,
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    chipContainer: {
+        flexDirection: "row",
+        flexWrap: "wrap",
+        gap: 8,
+    },
+    chip: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: colors.background,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 16,
+        gap: 6,
+    },
+    chipText: {
+        fontSize: 13,
+        color: colors.textDark,
+    },
+    companyList: {
+        gap: 12,
+    },
+    companyItem: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: colors.background,
+        padding: 12,
+        borderRadius: 8,
+        gap: 12,
+    },
+    companyName: {
+        fontSize: 14,
+        fontWeight: "600",
+        color: colors.textDark,
+    },
+    companyPrice: {
+        fontSize: 13,
+        color: colors.textLight,
+        marginTop: 2,
+    },
+    emptyText: {
+        color: colors.textLight,
+        fontStyle: "italic",
+        fontSize: 13,
+    },
+    uploadingContainer: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        marginBottom: 12,
+    },
+    uploadingText: {
+        color: colors.textLight,
+        fontSize: 13,
+    },
     imageWrapper: {
         position: "relative",
         marginRight: 12,
@@ -414,6 +662,7 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         backgroundColor: colors.primary,
         gap: 8,
+        elevation: 2, // Shadow for elevation
     },
     submitButtonText: { fontWeight: "600", color: colors.white },
 });

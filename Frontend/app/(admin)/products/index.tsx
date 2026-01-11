@@ -1,13 +1,14 @@
 import BulkUploadModal from "@/components/admin/products/BulkUploadModal";
 import ProductItem from "@/components/admin/products/ProductItem";
 import { Product } from "@/data/mockProducts";
-import { ProductService } from "@/services/productService";
+import { productService } from "@/services/productService";
 import { colors } from "@/styles/colors";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
     ActivityIndicator,
+    Alert,
     FlatList,
     StyleSheet,
     Text,
@@ -21,40 +22,70 @@ export default function ProductsScreen() {
     const [products, setProducts] = useState<Product[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
+    const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
     const [showUploadModal, setShowUploadModal] = useState(false);
 
-    const loadData = async () => {
+    // Debounce search query with 500ms delay
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearchQuery(searchQuery);
+        }, 500);
+
+        return () => clearTimeout(timer);
+    }, [searchQuery]);
+
+    const loadData = useCallback(async () => {
         setLoading(true);
         try {
-            const data = await ProductService.getAll();
+            console.log("Fetching products list...");
+            const data = debouncedSearchQuery.trim()
+                ? await productService.searchProducts(debouncedSearchQuery.trim())
+                : await productService.getProducts();
             setProducts(data);
-        } catch (err) {
-            console.error(err);
+        } catch (error: any) {
+            console.error("Failed to fetch products", error);
+            const message = error.response?.data?.message || "Failed to fetch products";
+            Alert.alert("Error", message);
         } finally {
             setLoading(false);
         }
-    };
+    }, [debouncedSearchQuery]);
 
     useFocusEffect(
         useCallback(() => {
             loadData();
-        }, [])
+        }, [loadData])
     );
 
     const handleDelete = async (id: string) => {
-        setProducts(prev => prev.filter(p => p.id !== id));
-        await ProductService.delete(id);
+        Alert.alert(
+            "Delete Product",
+            "Are you sure you want to delete this product?",
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Delete",
+                    style: "destructive",
+                    onPress: async () => {
+                        try {
+                            await productService.deleteProduct(id);
+                            loadData();
+                            Alert.alert("Success", "Product deleted successfully");
+                        } catch (error: any) {
+                            console.error("Delete product error:", error);
+                            const message = error.response?.data?.message || "Failed to delete product";
+                            Alert.alert("Error", message);
+                        }
+                    }
+                }
+            ]
+        );
     };
 
     const handleBulkUpload = async (file: any, onProgress: (p: number) => void) => {
-        await ProductService.bulkUpload(file, onProgress);
-        loadData(); // Reload after upload
+        // TODO: Implement bulk upload API when available
+        Alert.alert("Coming Soon", "Bulk upload feature will be available soon");
     };
-
-    const filteredProducts = products.filter(
-        p => p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            p.sku.toLowerCase().includes(searchQuery.toLowerCase())
-    );
 
     return (
         <View style={styles.container}>
@@ -104,7 +135,7 @@ export default function ProductsScreen() {
                 </View>
             ) : (
                 <FlatList
-                    data={filteredProducts}
+                    data={products}
                     keyExtractor={(item) => item.id}
                     renderItem={({ item }) => (
                         <ProductItem

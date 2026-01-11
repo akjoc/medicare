@@ -5,7 +5,7 @@ import { retailerService } from "@/services/retailer.service";
 import { colors } from "@/styles/colors";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Alert, FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 /**
@@ -19,19 +19,32 @@ export default function RetailersScreen() {
     const [retailers, setRetailers] = useState<Retailer[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
+    const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
+
+    // Debounce search query with 500ms delay
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearchQuery(searchQuery);
+        }, 500);
+
+        return () => clearTimeout(timer);
+    }, [searchQuery]);
 
     const fetchRetailers = useCallback(async () => {
         try {
             setLoading(true);
             console.log("Fetching retailers list...");
-            const data = await retailerService.getRetailers();
+            // Use search API if search query exists, otherwise get all retailers
+            const data = debouncedSearchQuery.trim()
+                ? await retailerService.searchRetailers(debouncedSearchQuery.trim())
+                : await retailerService.getRetailers();
             setRetailers(data);
         } catch (error) {
             console.error("Failed to fetch retailers", error);
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [debouncedSearchQuery]);
 
     // Load retailers on focus (so it updates after create/edit)
     useFocusEffect(
@@ -68,12 +81,6 @@ export default function RetailersScreen() {
         );
     };
 
-    const filteredRetailers = retailers.filter(
-        (r) =>
-            (r.ownerName || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-            r.shopName.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-
     // Render the main view. 
     // We use a regular View instead of SafeAreaView for the container because 
     // the parent layout already handles safe areas for the top header.
@@ -106,7 +113,7 @@ export default function RetailersScreen() {
                 </View>
             ) : (
                 <FlatList
-                    data={filteredRetailers}
+                    data={retailers}
                     keyExtractor={(item) => item.id}
                     renderItem={({ item }) => (
                         <RetailerCard

@@ -37,6 +37,17 @@ export const retailerService = {
         }
     },
 
+    searchRetailers: async (searchQuery: string) => {
+        try {
+            const response = await privateClient.get(ENDPOINTS.GET_RETAILERS, {
+                params: { search: searchQuery }
+            });
+            return response.data;
+        } catch (error) {
+            throw error;
+        }
+    },
+
     getRetailerById: async (id: string) => {
         try {
             const response = await privateClient.get(ENDPOINTS.GET_RETAILER_BY_ID(id));

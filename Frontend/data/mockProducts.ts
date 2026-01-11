@@ -11,13 +11,15 @@ export interface Category {
 export interface Product {
     id: string;
     name: string;
-    salt?: string; // Chemical composition
-    categoryId: string;
+    salt?: string[]; // Chemical composition - array of strings
+    company?: string;
+    buyingPrice?: number;
+    categoryIds: string[]; // Changed to array for multi-select
     price: number;
     salePrice?: number;
     stock: number;
     description: string;
-    images: string[];
+    images: string[]; // Max 5 images
     sku: string;
     status: "active" | "inactive" | "out_of_stock";
     createdAt: string;
@@ -62,8 +64,8 @@ export const MOCK_PRODUCTS: Product[] = [
     {
         id: "101",
         name: "Paracetamol 500mg",
-        salt: "Acetaminophen",
-        categoryId: "3", // Tablets
+        salt: ["Acetaminophen"],
+        categoryIds: ["3"], // Tablets
         price: 50,
         salePrice: 45,
         stock: 500,
@@ -76,8 +78,8 @@ export const MOCK_PRODUCTS: Product[] = [
     {
         id: "102",
         name: "Cough Syrup",
-        salt: "Dextromethorphan Hydrobromide",
-        categoryId: "4", // Syrups
+        salt: ["Dextromethorphan Hydrobromide"],
+        categoryIds: ["4"], // Syrups
         price: 120,
         stock: 100,
         description: "Relief from dry and wet cough.",
@@ -90,7 +92,7 @@ export const MOCK_PRODUCTS: Product[] = [
         id: "103",
         name: "Digital Thermometer",
         // No salt for devices
-        categoryId: "2", // Healthcare
+        categoryIds: ["2"], // Healthcare
         price: 800,
         salePrice: 650,
         stock: 20,
@@ -103,8 +105,8 @@ export const MOCK_PRODUCTS: Product[] = [
     {
         id: "104",
         name: "Dolo 500mg",
-        salt: "Acetaminophen",
-        categoryId: "1", // Medicine
+        salt: ["Acetaminophen"],
+        categoryIds: ["1"], // Medicine
         price: 50,
         salePrice: 45,
         stock: 500,
@@ -117,8 +119,8 @@ export const MOCK_PRODUCTS: Product[] = [
     {
         id: "105",
         name: "Bilajen 500mg",
-        salt: "Acetaminophen",
-        categoryId: "1", // Medicine
+        salt: ["Acetaminophen"],
+        categoryIds: ["1"], // Medicine
         price: 50,
         salePrice: 45,
         stock: 500,

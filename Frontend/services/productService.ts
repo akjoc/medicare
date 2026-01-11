@@ -1,69 +1,75 @@
-import { MOCK_PRODUCTS, Product } from "@/data/mockProducts";
+import { privateClient } from "@/api/client";
+import { ENDPOINTS } from "@/api/endpoint";
 
-// Simulate API delay
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+export interface ProductPayload {
+    name: string;
+    salt?: string[];
+    company?: string;
+    buyingPrice?: number;
+    categoryIds: string[]; // Changed to array for multi-select
+    price: number;
+    salePrice?: number;
+    stock: number;
+    description: string;
+    images: string[];
+    sku: string;
+    status: "active" | "inactive" | "out_of_stock";
+}
 
-let products = [...MOCK_PRODUCTS];
-
-export const ProductService = {
-    async getAll(): Promise<Product[]> {
-        await delay(500);
-        return [...products];
-    },
-
-    async getById(id: string): Promise<Product | undefined> {
-        await delay(300);
-        return products.find((p) => p.id === id);
-    },
-
-    async create(data: Omit<Product, "id" | "createdAt">): Promise<Product> {
-        await delay(800);
-        const newProduct: Product = {
-            id: Math.random().toString(36).substr(2, 9),
-            createdAt: new Date().toISOString(),
-            ...data,
-        };
-        products.unshift(newProduct); // Add to top
-        return newProduct;
-    },
-
-    async update(id: string, data: Partial<Product>): Promise<Product> {
-        await delay(800);
-        const index = products.findIndex((p) => p.id === id);
-        if (index === -1) throw new Error("Product not found");
-
-        products[index] = { ...products[index], ...data };
-        return products[index];
-    },
-
-    async delete(id: string): Promise<void> {
-        await delay(600);
-        products = products.filter((p) => p.id !== id);
-    },
-
-    async bulkUpload(
-        file: any,
-        onProgress: (progress: number) => void
-    ): Promise<void> {
-        // Simulate file processing with progress events
-        for (let i = 0; i <= 100; i += 10) {
-            await delay(200); // 2 seconds total roughly
-            onProgress(i / 100);
+export const productService = {
+    createProduct: async (data: ProductPayload) => {
+        try {
+            const response = await privateClient.post(ENDPOINTS.CREATE_PRODUCT, data);
+            return response.data;
+        } catch (error) {
+            throw error;
         }
+    },
 
-        // Mock creating some products from "file"
-        const mockNewProduct: Product = {
-            id: Math.random().toString(36).substr(2, 9),
-            name: "Imported Product " + Math.floor(Math.random() * 1000),
-            categoryId: "1",
-            price: 100,
-            stock: 50,
-            description: "Imported via Excel",
-            images: [],
-            sku: "IMP-" + Math.floor(Math.random() * 10000),
-            status: "active",
-            createdAt: new Date().toISOString(),
-        };
-        products.unshift(mockNewProduct);
-    }
+    getProducts: async () => {
+        try {
+            const response = await privateClient.get(ENDPOINTS.GET_PRODUCTS);
+            return response.data;
+        } catch (error) {
+            throw error;
+        }
+    },
+
+    searchProducts: async (searchQuery: string) => {
+        try {
+            const response = await privateClient.get(ENDPOINTS.GET_PRODUCTS, {
+                params: { search: searchQuery }
+            });
+            return response.data;
+        } catch (error) {
+            throw error;
+        }
+    },
+
+    getProductById: async (id: string) => {
+        try {
+            const response = await privateClient.get(ENDPOINTS.GET_PRODUCT_BY_ID(id));
+            return response.data;
+        } catch (error) {
+            throw error;
+        }
+    },
+
+    updateProduct: async (id: string, data: ProductPayload) => {
+        try {
+            const response = await privateClient.put(ENDPOINTS.UPDATE_PRODUCT(id), data);
+            return response.data;
+        } catch (error) {
+            throw error;
+        }
+    },
+
+    deleteProduct: async (id: string) => {
+        try {
+            const response = await privateClient.delete(ENDPOINTS.DELETE_PRODUCT(id));
+            return response.data;
+        } catch (error) {
+            throw error;
+        }
+    },
 };

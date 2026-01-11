@@ -14,4 +14,10 @@ export const ENDPOINTS = {
     GET_CATEGORY_BY_ID: (id: string) => `/categories/${id}`,
     UPDATE_CATEGORY: (id: string) => `/categories/${id}`,
     DELETE_CATEGORY: (id: string) => `/categories/${id}`,
+    // Product
+    CREATE_PRODUCT: "/products",
+    GET_PRODUCTS: "/products",
+    GET_PRODUCT_BY_ID: (id: string) => `/products/${id}`,
+    UPDATE_PRODUCT: (id: string) => `/products/${id}`,
+    DELETE_PRODUCT: (id: string) => `/products/${id}`,
 } as const;

@@ -1,11 +1,11 @@
 import ProductForm from "@/components/admin/products/ProductForm";
 import { Product } from "@/data/mockProducts";
-import { ProductService } from "@/services/productService";
+import { productService } from "@/services/productService";
 import { colors } from "@/styles/colors";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 export default function EditProductScreen() {
     const { id } = useLocalSearchParams();
@@ -17,8 +17,14 @@ export default function EditProductScreen() {
     useEffect(() => {
         const fetchProduct = async () => {
             if (typeof id === 'string') {
-                const data = await ProductService.getById(id);
-                setProduct(data || null);
+                try {
+                    const data = await productService.getProductById(id);
+                    setProduct(data || null);
+                } catch (error: any) {
+                    console.error("Failed to fetch product", error);
+                    const message = error.response?.data?.message || "Failed to fetch product";
+                    Alert.alert("Error", message);
+                }
             }
             setLoading(false);
         };
@@ -28,9 +34,17 @@ export default function EditProductScreen() {
     const handleSubmit = async (data: Omit<Product, "id" | "createdAt">) => {
         if (!id) return;
         setIsSubmitting(true);
-        await ProductService.update(id as string, data);
-        setIsSubmitting(false);
-        router.back();
+        try {
+            await productService.updateProduct(id as string, data);
+            Alert.alert("Success", "Product updated successfully", [
+                { text: "OK", onPress: () => router.back() }
+            ]);
+        } catch (error: any) {
+            console.error("Update product error:", error);
+            const message = error.response?.data?.message || "Failed to update product";
+            Alert.alert("Error", message);
+            setIsSubmitting(false);
+        }
     };
 
     if (loading) {

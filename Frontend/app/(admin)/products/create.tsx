@@ -1,11 +1,11 @@
 import ProductForm from "@/components/admin/products/ProductForm";
 import { Product } from "@/data/mockProducts";
-import { ProductService } from "@/services/productService";
+import { productService } from "@/services/productService";
 import { colors } from "@/styles/colors";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 export default function CreateProductScreen() {
     const router = useRouter();
@@ -13,9 +13,17 @@ export default function CreateProductScreen() {
 
     const handleSubmit = async (data: Omit<Product, "id" | "createdAt">) => {
         setIsSubmitting(true);
-        await ProductService.create(data);
-        setIsSubmitting(false);
-        router.back();
+        try {
+            await productService.createProduct(data);
+            Alert.alert("Success", "Product created successfully", [
+                { text: "OK", onPress: () => router.back() }
+            ]);
+        } catch (error: any) {
+            console.error("Create product error:", error);
+            const message = error.response?.data?.message || "Failed to create product";
+            Alert.alert("Error", message);
+            setIsSubmitting(false);
+        }
     };
 
     return (
