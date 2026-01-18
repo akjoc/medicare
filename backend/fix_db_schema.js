@@ -58,14 +58,22 @@ const fixSchema = async () => {
                 await sequelize.query(`ALTER TABLE Products ADD COLUMN dosage VARCHAR(255) DEFAULT NULL;`);
                 console.log("Added dosage column.");
             } catch (e) {
-                console.log("dosage column likely exists.");
+                if (e.original && e.original.code === 'ER_DUP_FIELDNAME') {
+                    console.log("dosage column already exists.");
+                } else {
+                    console.error("Error adding dosage column:", e.message);
+                }
             }
 
             try {
                 await sequelize.query(`ALTER TABLE Products ADD COLUMN packing VARCHAR(255) DEFAULT NULL;`);
                 console.log("Added packing column.");
             } catch (e) {
-                console.log("packing column likely exists.");
+                if (e.original && e.original.code === 'ER_DUP_FIELDNAME') {
+                    console.log("packing column already exists.");
+                } else {
+                    console.error("Error adding packing column:", e.message);
+                }
             }
 
             // 8. Create ProductCategories Table & Migrate Data
