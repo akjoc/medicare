@@ -91,11 +91,46 @@ const logoutUser = async (req, res) => {
     }
 };
 
+// Change Password
+const changePassword = async (req, res) => {
+    try {
+        const { currentPassword, newPassword, confirmPassword } = req.body;
+        const user = await User.findByPk(req.user.id);
+
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        // Verify Current Password
+        const isMatch = await user.matchPassword(currentPassword);
+        if (!isMatch) {
+            return res.status(400).json({ error: 'Incorrect current password' });
+        }
+
+        // Validate New Password
+        if (newPassword !== confirmPassword) {
+            return res.status(400).json({ error: 'New password and confirm password do not match' });
+        }
+
+        if (newPassword.length < 6) {
+            return res.status(400).json({ error: 'Password must be at least 6 characters long' });
+        }
+
+        // Update Password (Sequelize hook should handle hashing)
+        user.password = newPassword;
+        await user.save();
+
+        res.status(200).json({ message: 'Password updated successfully' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
 module.exports = {
     createUser,
     getAllUsers,
     loginUser,
-    loginUser,
     getMe,
-    logoutUser
+    logoutUser,
+    changePassword
 };

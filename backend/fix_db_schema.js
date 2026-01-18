@@ -18,7 +18,10 @@ const fixSchema = async () => {
         try { await sequelize.query(`ALTER TABLE Products ADD COLUMN salePrice FLOAT NULL;`); } catch (e) { }
         try { await sequelize.query(`ALTER TABLE Products ADD COLUMN companies JSON NULL;`); } catch (e) { }
         try { await sequelize.query(`ALTER TABLE Products ADD COLUMN imageUrls JSON NULL;`); } catch (e) { }
+        try { await sequelize.query(`ALTER TABLE Products MODIFY imageUrls JSON NULL;`); } catch (e) { } // Ensure it's nullable
+
         try { await sequelize.query(`ALTER TABLE Products ADD COLUMN publicIds JSON NULL;`); } catch (e) { }
+        try { await sequelize.query(`ALTER TABLE Products MODIFY publicIds JSON NULL;`); } catch (e) { } // Ensure it's nullable
 
         try { await sequelize.query(`ALTER TABLE Products MODIFY salt JSON;`); } catch (e) { console.log('Salt modify warning:', e.message); }
 
