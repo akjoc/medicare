@@ -618,12 +618,14 @@ const bulkUploadProducts = async (req, res) => {
 // Delete All Products
 const deleteAllProducts = async (req, res) => {
     try {
-        await Product.destroy({ where: {}, truncate: true });
+        await Product.destroy({ where: {} });
         res.status(200).json({ message: 'All products have been deleted successfully' });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 };
+
+
 
 module.exports = {
     createProduct,
