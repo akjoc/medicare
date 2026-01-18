@@ -49,7 +49,7 @@ const Product = sequelize.define('Product', {
     },
     imageUrls: {
         type: DataTypes.JSON, // Array of strings
-        allowNull: false,
+        allowNull: true,
         defaultValue: []
     },
     publicIds: {

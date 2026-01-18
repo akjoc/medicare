@@ -1,4 +1,5 @@
 const { Op } = require('sequelize');
+const { sequelize } = require('../config/database');
 const Product = require('../models/product');
 const Category = require('../models/category');
 const Retailer = require('../models/retailer');
@@ -11,31 +12,62 @@ const createProduct = async (req, res) => {
     try {
         const { name, description, price, buyingPrice, salePrice, companies, stock, categoryId, salt, sku } = req.body;
 
-        // Check if files are uploaded
-        if (!req.files || req.files.length === 0) {
-            return res.status(400).json({ error: 'Please upload at least one image' });
-        }
-
         // Check if category provided
         if (!categoryId) {
-            // Delete uploaded images since we are not going to save the product
-            for (const file of req.files) {
-                await cloudinary.uploader.destroy(file.filename);
+            // Delete uploaded images (if any) since we are not going to save the product
+            if (req.files) {
+                for (const file of req.files) {
+                    await cloudinary.uploader.destroy(file.filename);
+                }
             }
             return res.status(400).json({ error: 'Please provide a categoryId' });
+        }
+
+        // Validate Category Exists
+        const categoryExists = await Category.findByPk(categoryId);
+        if (!categoryExists) {
+            if (req.files) {
+                for (const file of req.files) {
+                    await cloudinary.uploader.destroy(file.filename);
+                }
+            }
+            return res.status(400).json({ error: 'Category not found' });
         }
 
         // Check if product with same name exists
         const existingProduct = await Product.findOne({ where: { name } });
         if (existingProduct) {
-            for (const file of req.files) {
-                await cloudinary.uploader.destroy(file.filename);
+            if (req.files) {
+                for (const file of req.files) {
+                    await cloudinary.uploader.destroy(file.filename);
+                }
             }
             return res.status(400).json({ error: 'Product with this name already exists' });
         }
 
-        const imageUrls = req.files.map(file => file.path);
-        const publicIds = req.files.map(file => file.filename);
+        // Check if SKU exists
+        const existingSku = await Product.findOne({ where: { sku } });
+        if (existingSku) {
+            if (req.files) {
+                for (const file of req.files) {
+                    await cloudinary.uploader.destroy(file.filename);
+                }
+            }
+            return res.status(400).json({ error: 'Product with this SKU already exists' });
+        }
+
+        // Check if files are uploaded (Optional now)
+        // If NO files, use the Default Image
+        let imageUrls = [];
+        let publicIds = [];
+
+        if (req.files && req.files.length > 0) {
+            imageUrls = req.files.map(file => file.path);
+            publicIds = req.files.map(file => file.filename);
+        } else {
+            imageUrls = ["https://res.cloudinary.com/dhvch5umt/image/upload/v1768724782/medical-equipments-500x500_ul7oua.webp"];
+            publicIds = []; // No public ID for external/default image
+        }
 
         // Helper to parse potential JSON or single string
         const parseArrayField = (field) => {
@@ -64,6 +96,10 @@ const createProduct = async (req, res) => {
 
         res.status(201).json(product);
     } catch (error) {
+        console.error("Create Product Error:", error);
+        if (error.name === 'SequelizeValidationError' || error.name === 'SequelizeUniqueConstraintError') {
+            return res.status(400).json({ error: error.errors.map(e => e.message).join(', ') });
+        }
         res.status(500).json({ error: error.message });
     }
 };
@@ -71,17 +107,25 @@ const createProduct = async (req, res) => {
 // Get All Products
 const getAllProducts = async (req, res) => {
     try {
-        const { search } = req.query;
+        const { search, page = 1 } = req.query;
+        const limit = 26;
+        const offset = (page - 1) * limit;
+
         let queryOptions = {
-            include: [{ model: Category }]
+            include: [{ model: Category }],
+            limit,
+            offset,
+            order: [['createdAt', 'DESC']],
+            subQuery: false // IMPORTANT: Required when filtering by associated model (Category name) with limit/offset
         };
 
         if (search) {
             queryOptions.where = {
                 [Op.or]: [
                     { name: { [Op.like]: `%${search}%` } },
-                    { salt: { [Op.like]: `%${search}%` } },
-                    { companies: { [Op.like]: `%${search}%` } },
+                    // Fix: Cast JSON columns to CHAR for LIKE search
+                    sequelize.where(sequelize.fn('LOWER', sequelize.cast(sequelize.col('salt'), 'CHAR')), { [Op.like]: `%${search.toLowerCase()}%` }),
+                    sequelize.where(sequelize.fn('LOWER', sequelize.cast(sequelize.col('companies'), 'CHAR')), { [Op.like]: `%${search.toLowerCase()}%` }),
                     { '$Category.name$': { [Op.like]: `%${search}%` } }
                 ]
             };
@@ -120,8 +164,14 @@ const getAllProducts = async (req, res) => {
             }
         }
 
-        const products = await Product.findAll(queryOptions);
-        res.status(200).json(products);
+        const { count, rows } = await Product.findAndCountAll(queryOptions);
+
+        res.status(200).json({
+            products: rows,
+            totalProducts: count,
+            totalPages: Math.ceil(count / limit),
+            currentPage: parseInt(page)
+        });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -144,7 +194,10 @@ const getProductById = async (req, res) => {
 // Update Product
 const updateProduct = async (req, res) => {
     try {
-        const { name, description, price, buyingPrice, salePrice, companies, stock, categoryId, salt, sku } = req.body;
+        const { name, description, price, buyingPrice, salePrice, companies, stock, salt, sku } = req.body;
+        // Handle both camelCase and PascalCase for categoryId
+        const categoryId = req.body.categoryId || req.body.CategoryId;
+
         const product = await Product.findByPk(req.params.id);
 
         if (!product) {
@@ -175,6 +228,11 @@ const updateProduct = async (req, res) => {
         };
 
         if (categoryId) {
+            // Validate Category Exists
+            const categoryExists = await Category.findByPk(categoryId);
+            if (!categoryExists) {
+                return res.status(400).json({ error: 'Category not found' });
+            }
             updatedData.CategoryId = categoryId;
         }
 
@@ -450,7 +508,7 @@ const bulkUploadProducts = async (req, res) => {
                     stock,
                     salt: saltArray, // Array
                     CategoryId: targetCategoryId,
-                    imageUrls: [],
+                    imageUrls: ["https://res.cloudinary.com/dhvch5umt/image/upload/v1768724782/medical-equipments-500x500_ul7oua.webp"],
                     publicIds: []
                 });
 

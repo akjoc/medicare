@@ -93,7 +93,9 @@ const { Op } = require('sequelize');
 // Get all retailers
 const getAllRetailers = async (req, res) => {
     try {
-        const { search } = req.query;
+        const { search, page = 1 } = req.query;
+        const limit = 20;
+        const offset = (page - 1) * limit;
         let whereClause = {};
 
         if (search) {
@@ -108,23 +110,31 @@ const getAllRetailers = async (req, res) => {
             };
         }
 
-        const retailers = await Retailer.findAll({
+        const { count, rows } = await Retailer.findAndCountAll({
             where: whereClause,
             include: [{
                 model: Category,
                 attributes: ['id'],
                 through: { attributes: [] }
-            }]
+            }],
+            limit,
+            offset,
+            distinct: true // Important for correct count with Include
         });
 
-        const result = retailers.map(retailer => {
+        const result = rows.map(retailer => {
             const plain = retailer.get({ plain: true });
             plain.categoryIds = plain.Categories ? plain.Categories.map(c => c.id) : [];
             delete plain.Categories;
             return plain;
         });
 
-        res.status(200).json(result);
+        res.status(200).json({
+            retailers: result,
+            totalRetailers: count,
+            totalPages: Math.ceil(count / limit),
+            currentPage: parseInt(page)
+        });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -216,6 +226,17 @@ const updateRetailer = async (req, res) => {
 
             // Update categories if provided
             if (req.body.categoryIds && Array.isArray(req.body.categoryIds)) {
+                // Validate that all categories exist
+                const categoriesCount = await Category.count({
+                    where: {
+                        id: req.body.categoryIds
+                    }
+                });
+
+                if (categoriesCount !== req.body.categoryIds.length) {
+                    return res.status(400).json({ error: 'One or more Category IDs are invalid' });
+                }
+
                 await retailer.setCategories(req.body.categoryIds);
             }
 
