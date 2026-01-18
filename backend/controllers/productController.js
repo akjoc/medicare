@@ -202,13 +202,35 @@ const getAllProducts = async (req, res) => {
 
         const { count, rows } = await Product.findAndCountAll(queryOptions);
 
+        let mergedRows = [];
+        if (rows.length > 0) {
+            // Fetch raw data for dynamic columns
+            const ids = rows.map(r => r.id);
+            const rawData = await sequelize.query(
+                `SELECT * FROM Products WHERE id IN (:ids)`,
+                {
+                    replacements: { ids },
+                    type: sequelize.QueryTypes.SELECT
+                }
+            );
+
+            // Merge raw data into sequelize instances
+            mergedRows = rows.map(p => {
+                const plain = p.get({ plain: true });
+                const raw = rawData.find(r => r.id === p.id) || {};
+
+                // Merge, prioritizing Sequelize (for associations) but taking dynamic fields from raw
+                // Note: Raw fields will lowercase keys usually in MySQL, depends on driver. 
+                // We trust Sequelize fields first.
+                return { ...raw, ...plain };
+            });
+        }
+
         // Sanitize response: Remove 'CategoryId' (uppercase) if 'categoryId' (lowercase) exists or just cleanup
-        const cleanRows = rows.map(p => {
-            const plain = p.get({ plain: true });
+        const cleanRows = mergedRows.map(p => {
+            const plain = p;
             if (plain.CategoryId !== undefined) delete plain.CategoryId;
             if (plain.publicIds !== undefined) delete plain.publicIds; // Remove publicIds
-            // Ensure lowercase categoryId is present if missing (optional, but good for consistency)
-            // if (!plain.categoryId && plain.CategoryId) plain.categoryId = plain.CategoryId; 
             return plain;
         });
 
@@ -233,7 +255,19 @@ const getProductById = async (req, res) => {
             }
         });
         if (product) {
-            res.status(200).json(getCleanProduct(product));
+            // Fetch raw data for dynamic columns
+            const [rawProduct] = await sequelize.query(
+                `SELECT * FROM Products WHERE id = :id`,
+                {
+                    replacements: { id: req.params.id },
+                    type: sequelize.QueryTypes.SELECT
+                }
+            );
+
+            const plain = product.get({ plain: true });
+            const merged = { ...(rawProduct || {}), ...plain };
+
+            res.status(200).json(getCleanProduct(merged));
         } else {
             res.status(404).json({ error: 'Product not found' });
         }
