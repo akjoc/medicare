@@ -13,8 +13,8 @@ export default function ProductItem({ product, onPress, onDelete }: ProductItemP
     return (
         <TouchableOpacity style={styles.container} onPress={onPress}>
             <View style={styles.imageContainer}>
-                {product.images && product.images.length > 0 ? (
-                    <Image source={{ uri: product.images[0] }} style={styles.image} />
+                {product.imageUrls && product.imageUrls.length > 0 ? (
+                    <Image source={{ uri: product.imageUrls[0] }} style={styles.image} />
                 ) : (
                     <View style={styles.placeholderImage}>
                         <Ionicons name="image-outline" size={24} color={colors.textLight} />

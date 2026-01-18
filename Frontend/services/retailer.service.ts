@@ -18,6 +18,13 @@ export interface RetailerPayload {
     categoryIds?: string[];
 }
 
+export interface RetailerResponse {
+    retailers: any[];
+    totalRetailers: number;
+    totalPages: number;
+    currentPage: number;
+}
+
 export const retailerService = {
     createRetailer: async (data: RetailerPayload) => {
         try {
@@ -28,19 +35,21 @@ export const retailerService = {
         }
     },
 
-    getRetailers: async () => {
+    getRetailers: async (page = 1, limit = 10): Promise<RetailerResponse> => {
         try {
-            const response = await privateClient.get(ENDPOINTS.GET_RETAILERS);
+            const response = await privateClient.get(ENDPOINTS.GET_RETAILERS, {
+                params: { page, limit }
+            });
             return response.data;
         } catch (error) {
             throw error;
         }
     },
 
-    searchRetailers: async (searchQuery: string) => {
+    searchRetailers: async (searchQuery: string, page = 1, limit = 10): Promise<RetailerResponse> => {
         try {
             const response = await privateClient.get(ENDPOINTS.GET_RETAILERS, {
-                params: { search: searchQuery }
+                params: { search: searchQuery, page, limit }
             });
             return response.data;
         } catch (error) {

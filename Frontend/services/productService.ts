@@ -16,6 +16,13 @@ export interface ProductPayload {
     status: "active" | "inactive" | "out_of_stock";
 }
 
+export interface ProductResponse {
+    products: any[];
+    currentPage: number;
+    totalPages: number;
+    totalProducts: number;
+}
+
 export const productService = {
     createProduct: async (data: ProductPayload) => {
         try {
@@ -26,19 +33,21 @@ export const productService = {
         }
     },
 
-    getProducts: async () => {
+    getProducts: async (page = 1, limit = 10): Promise<ProductResponse> => {
         try {
-            const response = await privateClient.get(ENDPOINTS.GET_PRODUCTS);
+            const response = await privateClient.get(ENDPOINTS.GET_PRODUCTS, {
+                params: { page, limit }
+            });
             return response.data;
         } catch (error) {
             throw error;
         }
     },
 
-    searchProducts: async (searchQuery: string) => {
+    searchProducts: async (searchQuery: string, page = 1, limit = 10): Promise<ProductResponse> => {
         try {
             const response = await privateClient.get(ENDPOINTS.GET_PRODUCTS, {
-                params: { search: searchQuery }
+                params: { search: searchQuery, page, limit }
             });
             return response.data;
         } catch (error) {

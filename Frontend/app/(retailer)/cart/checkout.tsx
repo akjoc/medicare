@@ -45,7 +45,12 @@ export default function CheckoutScreen() {
     };
 
     const subtotal = items.reduce(
-        (sum, item) => sum + (item.product.salePrice || item.product.price) * item.quantity,
+        (sum, item) => {
+            const price = Number(item.product.price);
+            const salePrice = item.product.salePrice ? Number(item.product.salePrice) : 0;
+            const effectivePrice = salePrice > 0 ? salePrice : price;
+            return sum + effectivePrice * item.quantity;
+        },
         0
     );
 
@@ -158,7 +163,7 @@ Can you offer any extra discount on this?`;
                                     {item.quantity}x {item.product.name}
                                 </Text>
                                 <Text style={styles.orderItemPrice}>
-                                    ₹{(item.product.salePrice || item.product.price) * item.quantity}
+                                    ₹{(item.product.salePrice ? Number(item.product.salePrice) : Number(item.product.price)) * item.quantity}
                                 </Text>
                             </View>
                         </View>

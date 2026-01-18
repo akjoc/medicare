@@ -35,6 +35,13 @@ export default function AdminLayout() {
                 />
 
                 <Tabs.Screen
+                    name="orders/[id]"
+                    options={{
+                        href: null,
+                    }}
+                />
+
+                <Tabs.Screen
                     name="products"
                     options={{
                         title: "Products",
@@ -66,7 +73,7 @@ export default function AdminLayout() {
                 />
 
                 <Tabs.Screen
-                    name="account/index"
+                    name="account"
                     options={{
                         title: "Account",
                         tabBarIcon: ({ color, size }) => (

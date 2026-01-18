@@ -21,38 +21,68 @@ export default function RetailersScreen() {
     const [searchQuery, setSearchQuery] = useState("");
     const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
 
+    // State for pagination
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [loadingMore, setLoadingMore] = useState(false);
+
     // Debounce search query with 500ms delay
     useEffect(() => {
         const timer = setTimeout(() => {
+            setPage(1); // Reset page on search
             setDebouncedSearchQuery(searchQuery);
         }, 500);
 
         return () => clearTimeout(timer);
     }, [searchQuery]);
 
-    const fetchRetailers = useCallback(async () => {
+    const fetchRetailers = useCallback(async (isLoadMore = false) => {
         try {
-            setLoading(true);
-            console.log("Fetching retailers list...");
+            if (!isLoadMore) setLoading(true);
+            const currentPage = isLoadMore ? page + 1 : 1;
+            console.log(`Fetching retailers page ${currentPage}...`);
+
             // Use search API if search query exists, otherwise get all retailers
-            const data = debouncedSearchQuery.trim()
-                ? await retailerService.searchRetailers(debouncedSearchQuery.trim())
-                : await retailerService.getRetailers();
-            setRetailers(data);
+            const response = debouncedSearchQuery.trim()
+                ? await retailerService.searchRetailers(debouncedSearchQuery.trim(), currentPage)
+                : await retailerService.getRetailers(currentPage);
+
+            if (isLoadMore) {
+                setRetailers(prev => {
+                    const existingIds = new Set(prev.map(r => r.id));
+                    const newRetailers = response.retailers.filter((r: any) => !existingIds.has(r.id));
+                    return [...prev, ...newRetailers];
+                });
+                setPage(currentPage);
+            } else {
+                setRetailers(response.retailers);
+                setPage(1);
+            }
+            setTotalPages(response.totalPages);
         } catch (error) {
             console.error("Failed to fetch retailers", error);
         } finally {
             setLoading(false);
+            setLoadingMore(false);
         }
-    }, [debouncedSearchQuery]);
+    }, [debouncedSearchQuery, page]);
 
     // Load retailers on focus (so it updates after create/edit)
     useFocusEffect(
         useCallback(() => {
-            fetchRetailers();
+            // Only fetch initials on focus if we are not already loading or if standard refresh is needed
+            // To be safe and simple: fetch page 1
+            fetchRetailers(false);
             return () => { };
-        }, [fetchRetailers])
+        }, [debouncedSearchQuery])
     );
+
+    const handleLoadMore = () => {
+        if (!loadingMore && !loading && page < totalPages) {
+            setLoadingMore(true);
+            fetchRetailers(true);
+        }
+    };
 
     const handleDelete = (id: string) => {
         Alert.alert(
@@ -68,7 +98,7 @@ export default function RetailersScreen() {
                             await retailerService.deleteRetailer(id);
                             // Optimistically update list or refetch
                             // Refetching ensures consistency
-                            fetchRetailers();
+                            fetchRetailers(false);
                             Alert.alert("Success", "Retailer deleted successfully");
                         } catch (error: any) {
                             console.error("Delete retailer error:", error);
@@ -78,6 +108,15 @@ export default function RetailersScreen() {
                     }
                 }
             ]
+        );
+    };
+
+    const renderFooter = () => {
+        if (!loadingMore) return null;
+        return (
+            <View style={styles.center}>
+                <ActivityIndicator size="small" color={colors.primary} />
+            </View>
         );
     };
 
@@ -107,7 +146,7 @@ export default function RetailersScreen() {
                 />
             </View>
 
-            {loading ? (
+            {loading && !loadingMore ? (
                 <View style={styles.center}>
                     <ActivityIndicator size="large" color={colors.primary} />
                 </View>
@@ -137,6 +176,9 @@ export default function RetailersScreen() {
                             <Text style={styles.emptyText}>No retailers found</Text>
                         </View>
                     }
+                    onEndReached={handleLoadMore}
+                    onEndReachedThreshold={0.5}
+                    ListFooterComponent={renderFooter}
                 />
             )}
         </View>

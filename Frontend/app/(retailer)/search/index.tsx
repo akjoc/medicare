@@ -1,19 +1,21 @@
 import ProductCard from "@/components/retailer/ProductCard";
-import { MOCK_CATEGORIES, MOCK_PRODUCTS, Product } from "@/data/mockProducts";
+import { retailerProductService } from "@/services/retailerProduct.service";
 import { colors } from "@/styles/colors";
+import { APIProduct } from "@/types/api";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function SearchScreen() {
     const router = useRouter();
     const [query, setQuery] = useState("");
-    const [results, setResults] = useState<Product[]>([]);
+    const [results, setResults] = useState<APIProduct[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
     const [hasSearched, setHasSearched] = useState(false);
 
-    const handleSearch = (text: string) => {
+    const handleSearch = async (text: string) => {
         setQuery(text);
         if (text.trim() === "") {
             setResults([]);
@@ -22,20 +24,17 @@ export default function SearchScreen() {
         }
 
         setHasSearched(true);
-        const lowerText = text.toLowerCase();
+        setIsLoading(true);
 
-        const filtered = MOCK_PRODUCTS.filter(p => {
-            const matchesName = p.name.toLowerCase().includes(lowerText);
-            const matchesSalt = p.salt?.toLowerCase().includes(lowerText);
-
-            // Find category name
-            const category = MOCK_CATEGORIES.find(c => c.id === p.categoryId);
-            const matchesCategory = category?.name.toLowerCase().includes(lowerText);
-
-            return matchesName || matchesSalt || matchesCategory;
-        });
-
-        setResults(filtered);
+        try {
+            const data = await retailerProductService.searchProducts(text);
+            setResults(data);
+        } catch (error) {
+            console.error("Search error:", error);
+            // Optionally handle error state
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     return (
@@ -51,7 +50,10 @@ export default function SearchScreen() {
                         placeholderTextColor={colors.textLight}
                         autoFocus
                     />
-                    {query.length > 0 && (
+                    {isLoading && (
+                        <ActivityIndicator size="small" color={colors.primary} style={{ marginRight: 8 }} />
+                    )}
+                    {query.length > 0 && !isLoading && (
                         <TouchableOpacity onPress={() => handleSearch("")}>
                             <Ionicons name="close-circle" size={20} color={colors.textLight} />
                         </TouchableOpacity>
@@ -61,7 +63,7 @@ export default function SearchScreen() {
 
             <FlatList
                 data={results}
-                keyExtractor={(item) => item.id}
+                keyExtractor={(item) => item.id.toString()}
                 renderItem={({ item }) => (
                     <ProductCard
                         product={item}
@@ -72,7 +74,7 @@ export default function SearchScreen() {
                 contentContainerStyle={styles.listContent}
                 columnWrapperStyle={styles.columnWrapper}
                 ListEmptyComponent={
-                    hasSearched ? (
+                    hasSearched && query.trim() !== "" ? (
                         <View style={styles.emptyContainer}>
                             <Ionicons name="search-outline" size={64} color={colors.border} />
                             <Text style={styles.emptyText}>No results found for "{query}"</Text>

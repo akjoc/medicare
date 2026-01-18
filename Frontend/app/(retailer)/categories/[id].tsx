@@ -1,17 +1,57 @@
 import ProductCard from "@/components/retailer/ProductCard";
-import { MOCK_CATEGORIES, MOCK_PRODUCTS } from "@/data/mockProducts";
+import { Category, CategoryService } from "@/services/categoryService";
+import { retailerProductService } from "@/services/retailerProduct.service";
 import { colors } from "@/styles/colors";
+import { APIProduct } from "@/types/api";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function CategoryProductsScreen() {
     const { id } = useLocalSearchParams();
     const router = useRouter();
 
-    const category = MOCK_CATEGORIES.find(c => c.id === id);
-    const products = MOCK_PRODUCTS.filter(p => p.categoryId === id);
+    const [category, setCategory] = useState<Category | null>(null);
+    const [products, setProducts] = useState<APIProduct[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        if (id) {
+            fetchData(id as string);
+        }
+    }, [id]);
+
+    const fetchData = async (categoryId: string) => {
+        try {
+            setIsLoading(true);
+            const [categoryData, productsData] = await Promise.all([
+                CategoryService.getById(categoryId),
+                retailerProductService.getProducts()
+            ]);
+            setCategory(categoryData);
+
+            // Filter products client-side for now
+            const filteredProducts = productsData.filter((p: APIProduct) => {
+                return p.CategoryId === Number(categoryId);
+            });
+            setProducts(filteredProducts);
+
+        } catch (error) {
+            console.error("Error fetching category data:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    if (isLoading) {
+        return (
+            <SafeAreaView style={[styles.container, styles.center]} edges={["top"]}>
+                <ActivityIndicator size="large" color={colors.primary} />
+            </SafeAreaView>
+        );
+    }
 
     if (!category) {
         return (
@@ -33,7 +73,7 @@ export default function CategoryProductsScreen() {
 
             <FlatList
                 data={products}
-                keyExtractor={(item) => item.id}
+                keyExtractor={(item) => item.id.toString()}
                 renderItem={({ item }) => (
                     <ProductCard
                         product={item}

@@ -1,35 +1,37 @@
 import { useCart } from "@/context/CartContext";
-import { Product } from "@/data/mockProducts";
 import { colors } from "@/styles/colors";
+import { APIProduct } from "@/types/api";
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 interface ProductCardProps {
-    product: Product;
+    product: APIProduct;
     onPress: () => void;
 }
 
 export default function ProductCard({ product, onPress }: ProductCardProps) {
     const { addToCart, getItemQuantity, updateQuantity } = useCart();
-    const hasImage = product.images && product.images.length > 0;
-    const isOutOfStock = product.status === "out_of_stock";
+    const hasImage = product.imageUrls && product.imageUrls.length > 0;
+    const isOutOfStock = product.stock <= 0;
 
-    // Get quantity from cart context
-    const quantity = getItemQuantity(product.id);
+    // Calculate discount
+    const price = Number(product.price);
+    const salePrice = product.salePrice ? Number(product.salePrice) : 0;
+    const discount = salePrice > 0 ? Math.round(((price - salePrice) / price) * 100) : 0;
 
     const handleAddToCart = () => {
         addToCart(product);
     };
 
     const handleUpdateQuantity = (newQty: number) => {
-        updateQuantity(product.id, newQty);
+        updateQuantity(product.id.toString(), newQty);
     };
 
     const handleQuantityTextChange = (text: string) => {
         const qty = parseInt(text);
         if (!isNaN(qty)) {
-            updateQuantity(product.id, qty);
+            updateQuantity(product.id.toString(), qty);
         } else if (text === "") {
             // Optional: Handle empty input if needed, but safer to do nothing or set to 0
         }
@@ -43,16 +45,16 @@ export default function ProductCard({ product, onPress }: ProductCardProps) {
         >
             <View style={styles.imageContainer}>
                 {hasImage ? (
-                    <Image source={{ uri: product.images[0] }} style={styles.image} resizeMode="cover" />
+                    <Image source={{ uri: product.imageUrls[0] }} style={styles.image} resizeMode="cover" />
                 ) : (
                     <View style={styles.placeholder}>
                         <Ionicons name="image-outline" size={40} color={colors.textLight} />
                     </View>
                 )}
-                {product.salePrice && (
+                {salePrice > 0 && (
                     <View style={styles.discountBadge}>
                         <Text style={styles.discountText}>
-                            {Math.round(((product.price - product.salePrice) / product.price) * 100)}% OFF
+                            {Math.round(((price - salePrice) / price) * 100)}% OFF
                         </Text>
                     </View>
                 )}
@@ -62,9 +64,9 @@ export default function ProductCard({ product, onPress }: ProductCardProps) {
                 <Text style={styles.name} numberOfLines={2}>
                     {product.name}
                 </Text>
-                {product.salt && (
+                {product.salt && product.salt.length > 0 && (
                     <Text style={styles.salt} numberOfLines={1}>
-                        {product.salt}
+                        {product.salt[0]}
                     </Text>
                 )}
 

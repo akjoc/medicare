@@ -1,16 +1,51 @@
-import { MOCK_CATEGORIES } from "@/data/mockProducts";
+import { retailerCategoryService } from "@/services/retailerCategory.service";
 import { colors } from "@/styles/colors";
+import { APICategory } from "@/types/api";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function CategoriesScreen() {
     const router = useRouter();
+    const [categories, setCategories] = useState<APICategory[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
 
-    // Only show top-level categories or all? Let's show all for now, or maybe group them.
-    // The requirement is just "View full product catalog... Category".
-    // Let's just list them nicely.
+    useEffect(() => {
+        fetchCategories();
+    }, []);
+
+    const fetchCategories = async () => {
+        try {
+            setIsLoading(true);
+            const data = await retailerCategoryService.getAllCategories();
+            // Flatten the categories tree to show all
+            const flattened: APICategory[] = [];
+            const flatten = (cats: APICategory[]) => {
+                cats.forEach(c => {
+                    flattened.push(c);
+                    if (c.subCategories && c.subCategories.length > 0) {
+                        flatten(c.subCategories);
+                    }
+                });
+            };
+            flatten(data);
+            setCategories(flattened);
+        } catch (error) {
+            console.error("Error fetching categories:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    if (isLoading) {
+        return (
+            <SafeAreaView style={[styles.container, styles.center]} edges={["top"]}>
+                <ActivityIndicator size="large" color={colors.primary} />
+            </SafeAreaView>
+        );
+    }
 
     return (
         <SafeAreaView style={styles.container} edges={["top"]}>
@@ -19,8 +54,8 @@ export default function CategoriesScreen() {
             </View>
 
             <FlatList
-                data={MOCK_CATEGORIES}
-                keyExtractor={(item) => item.id}
+                data={categories}
+                keyExtractor={(item) => item.id.toString()}
                 renderItem={({ item }) => (
                     <TouchableOpacity
                         style={styles.card}
@@ -31,7 +66,9 @@ export default function CategoriesScreen() {
                         </View>
                         <View style={styles.info}>
                             <Text style={styles.name}>{item.name}</Text>
-                            <Text style={styles.count}>{item.productCount} Products</Text>
+                            {item.productCount !== undefined && (
+                                <Text style={styles.count}>{item.productCount} Products</Text>
+                            )}
                         </View>
                         <Ionicons name="chevron-forward" size={20} color={colors.textLight} />
                     </TouchableOpacity>
@@ -46,6 +83,11 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: colors.background,
+    },
+    center: {
+        flex: 1,
+        justifyContent: "center",
+        alignItems: "center",
     },
     header: {
         paddingHorizontal: 20,

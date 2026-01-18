@@ -18,44 +18,101 @@ import {
 } from "react-native";
 
 export default function ProductsScreen() {
+
     const router = useRouter();
     const [products, setProducts] = useState<Product[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
     const [showUploadModal, setShowUploadModal] = useState(false);
 
+    // Pagination state
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+
     // Debounce search query with 500ms delay
     useEffect(() => {
         const timer = setTimeout(() => {
+            setPage(1); // Reset page on search
             setDebouncedSearchQuery(searchQuery);
         }, 500);
 
         return () => clearTimeout(timer);
     }, [searchQuery]);
 
-    const loadData = useCallback(async () => {
-        setLoading(true);
+    const loadData = useCallback(async (isLoadMore = false) => {
+        if (!isLoadMore) setLoading(true);
         try {
-            console.log("Fetching products list...");
-            const data = debouncedSearchQuery.trim()
-                ? await productService.searchProducts(debouncedSearchQuery.trim())
-                : await productService.getProducts();
-            setProducts(data);
+            const currentPage = isLoadMore ? page + 1 : 1;
+            console.log(`Fetching products page ${currentPage}...`);
+
+            const response = debouncedSearchQuery.trim()
+                ? await productService.searchProducts(debouncedSearchQuery.trim(), currentPage)
+                : await productService.getProducts(currentPage);
+
+            if (isLoadMore) {
+                setProducts(prev => {
+                    const existingIds = new Set(prev.map(p => p.id));
+                    const newProducts = response.products.filter((p: any) => !existingIds.has(p.id));
+                    return [...prev, ...newProducts];
+                });
+                setPage(currentPage);
+            } else {
+                setProducts(response.products);
+                setPage(1);
+            }
+            setTotalPages(response.totalPages);
         } catch (error: any) {
             console.error("Failed to fetch products", error);
             const message = error.response?.data?.message || "Failed to fetch products";
             Alert.alert("Error", message);
         } finally {
             setLoading(false);
+            setLoadingMore(false);
         }
-    }, [debouncedSearchQuery]);
+    }, [debouncedSearchQuery, page]);
 
+    // Initial load
     useFocusEffect(
         useCallback(() => {
-            loadData();
-        }, [loadData])
+            loadData(false);
+        }, [debouncedSearchQuery]) // Depend only on query changing, handled by useEffect above for initial trigger? 
+        // Actually, let's keep it simple. useFocusEffect with useCallback dependency on debouncedSearchQuery might loop if loadData changes?
+        // Let's refactor slightly to be safer
     );
+
+    // Better Focus Effect handling to avoid loops/stale closures
+    useFocusEffect(
+        useCallback(() => {
+            // When screen focuses, if we have a query, it might trigger. 
+            // We want to refresh list on focus essentially.
+            setPage(1);
+
+            const fetchInitial = async () => {
+                setLoading(true);
+                try {
+                    const response = debouncedSearchQuery.trim()
+                        ? await productService.searchProducts(debouncedSearchQuery.trim(), 1)
+                        : await productService.getProducts(1);
+                    setProducts(response.products);
+                    setTotalPages(response.totalPages);
+                } catch (error) {
+                    console.error(error);
+                } finally {
+                    setLoading(false);
+                }
+            };
+            fetchInitial();
+        }, [debouncedSearchQuery])
+    );
+
+    const handleLoadMore = () => {
+        if (!loadingMore && !loading && page < totalPages) {
+            setLoadingMore(true);
+            loadData(true);
+        }
+    };
 
     const handleDelete = async (id: string) => {
         Alert.alert(
@@ -69,7 +126,8 @@ export default function ProductsScreen() {
                     onPress: async () => {
                         try {
                             await productService.deleteProduct(id);
-                            loadData();
+                            // Refresh current list - easiest is to reload first page
+                            loadData(false);
                             Alert.alert("Success", "Product deleted successfully");
                         } catch (error: any) {
                             console.error("Delete product error:", error);
@@ -85,6 +143,15 @@ export default function ProductsScreen() {
     const handleBulkUpload = async (file: any, onProgress: (p: number) => void) => {
         // TODO: Implement bulk upload API when available
         Alert.alert("Coming Soon", "Bulk upload feature will be available soon");
+    };
+
+    const renderFooter = () => {
+        if (!loadingMore) return null;
+        return (
+            <View style={styles.center}>
+                <ActivityIndicator size="small" color={colors.primary} />
+            </View>
+        );
     };
 
     return (
@@ -129,19 +196,19 @@ export default function ProductsScreen() {
                 </TouchableOpacity>
             </View>
 
-            {loading ? (
+            {loading && !loadingMore ? (
                 <View style={styles.center}>
                     <ActivityIndicator size="large" color={colors.primary} />
                 </View>
             ) : (
                 <FlatList
                     data={products}
-                    keyExtractor={(item) => item.id}
+                    keyExtractor={(item) => item.id.toString()}
                     renderItem={({ item }) => (
                         <ProductItem
                             product={item}
                             onPress={() => router.push(`/(admin)/products/${item.id}`)}
-                            onDelete={() => handleDelete(item.id)}
+                            onDelete={() => handleDelete(item.id.toString())}
                         />
                     )}
                     contentContainerStyle={styles.listContent}
@@ -150,6 +217,9 @@ export default function ProductsScreen() {
                             <Text style={styles.emptyText}>No products found</Text>
                         </View>
                     }
+                    onEndReached={handleLoadMore}
+                    onEndReachedThreshold={0.5}
+                    ListFooterComponent={renderFooter}
                 />
             )}
 

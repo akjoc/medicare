@@ -27,7 +27,12 @@ export default function CartScreen() {
     const [appliedCouponCode, setAppliedCouponCode] = useState("");
 
     const subtotal = items.reduce(
-        (sum, item) => sum + (item.product.salePrice || item.product.price) * item.quantity,
+        (sum, item) => {
+            const price = Number(item.product.price);
+            const salePrice = item.product.salePrice ? Number(item.product.salePrice) : 0;
+            const effectivePrice = salePrice > 0 ? salePrice : price;
+            return sum + effectivePrice * item.quantity;
+        },
         0
     );
 
@@ -88,11 +93,16 @@ ${items.map(item => `- ${item.product.name} (Qty: ${item.quantity})`).join('\n')
 
     const renderCartItem = ({ item }: { item: CartItem }) => {
         const product = item.product;
+        // Parse prices to ensure math works
+        const price = Number(product.price);
+        const salePrice = product.salePrice ? Number(product.salePrice) : 0;
+        const currentPrice = salePrice > 0 ? salePrice : price;
+
         return (
             <View style={styles.cartItemContainer}>
                 <View style={styles.imageContainer}>
-                    {product.images && product.images.length > 0 ? (
-                        <Image source={{ uri: product.images[0] }} style={styles.image} resizeMode="cover" />
+                    {product.imageUrls && product.imageUrls.length > 0 ? (
+                        <Image source={{ uri: product.imageUrls[0] }} style={styles.image} resizeMode="cover" />
                     ) : (
                         <View style={styles.placeholder}>
                             <Ionicons name="image-outline" size={24} color={colors.textLight} />
@@ -104,25 +114,25 @@ ${items.map(item => `- ${item.product.name} (Qty: ${item.quantity})`).join('\n')
                     <Text style={styles.itemName} numberOfLines={2}>
                         {product.name}
                     </Text>
-                    {product.salt && (
+                    {product.salt && product.salt.length > 0 && (
                         <Text style={styles.itemSalt} numberOfLines={1}>
-                            {product.salt}
+                            {product.salt[0]}
                         </Text>
                     )}
                     <Text style={styles.itemPrice}>
-                        ₹{product.salePrice || product.price}
+                        ₹{currentPrice}
                     </Text>
                 </View>
 
                 <View style={styles.actionsContainer}>
                     <QuantitySelector
                         quantity={item.quantity}
-                        onIncrease={() => updateQuantity(product.id, item.quantity + 1)}
-                        onDecrease={() => updateQuantity(product.id, item.quantity - 1)}
+                        onIncrease={() => updateQuantity(product.id.toString(), item.quantity + 1)}
+                        onDecrease={() => updateQuantity(product.id.toString(), item.quantity - 1)}
                         onChangeText={(text) => {
                             const qty = parseInt(text);
                             if (!isNaN(qty)) {
-                                updateQuantity(product.id, qty);
+                                updateQuantity(product.id.toString(), qty);
                             }
                         }}
                     />
@@ -160,7 +170,7 @@ ${items.map(item => `- ${item.product.name} (Qty: ${item.quantity})`).join('\n')
             <View style={{ flex: 1 }}>
                 <FlatList
                     data={items}
-                    keyExtractor={(item) => item.product.id}
+                    keyExtractor={(item) => item.product.id.toString()}
                     renderItem={renderCartItem}
                     contentContainerStyle={styles.listContent}
                     showsVerticalScrollIndicator={false}

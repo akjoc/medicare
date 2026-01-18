@@ -1,11 +1,13 @@
 import QuantitySelector from "@/components/retailer/QuantitySelector";
 import { useCart } from "@/context/CartContext";
-import { MOCK_CATEGORIES, MOCK_PRODUCTS } from "@/data/mockProducts";
+import { Category, CategoryService } from "@/services/categoryService";
+import { retailerProductService } from "@/services/retailerProduct.service";
 import { colors } from "@/styles/colors";
+import { APIProduct } from "@/types/api";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useState } from "react";
-import { Dimensions, FlatList, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, Dimensions, FlatList, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const { width } = Dimensions.get("window");
@@ -16,37 +18,80 @@ export default function ProductDetailsScreen() {
     const [activeSlide, setActiveSlide] = useState(0);
     const { addToCart, getItemQuantity, updateQuantity } = useCart();
 
-    const product = MOCK_PRODUCTS.find(p => p.id === id);
-    const category = product ? MOCK_CATEGORIES.find(c => c.id === product.categoryId) : null;
+    const [product, setProduct] = useState<APIProduct | null>(null);
+    const [category, setCategory] = useState<Category | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
-    if (!product) {
+    useEffect(() => {
+        if (id) {
+            fetchProductDetails(id as string);
+        }
+    }, [id]);
+
+    const fetchProductDetails = async (productId: string) => {
+        try {
+            setIsLoading(true);
+            setError(null);
+            const productData = await retailerProductService.getProductById(productId);
+            setProduct(productData);
+
+            if (productData && productData.CategoryId) {
+                const categoryData = await CategoryService.getById(productData.CategoryId.toString());
+                setCategory(categoryData);
+            }
+        } catch (err) {
+            console.error("Error fetching details:", err);
+            setError("Failed to load product details");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    if (isLoading) {
         return (
             <SafeAreaView style={styles.center}>
-                <Text>Product not found</Text>
+                <ActivityIndicator size="large" color={colors.primary} />
             </SafeAreaView>
         );
     }
 
-    const hasImages = product.images && product.images.length > 0;
-    const isOutOfStock = product.status === "out_of_stock";
+    if (error || !product) {
+        return (
+            <SafeAreaView style={styles.center}>
+                <Text style={{ color: colors.textLight, marginBottom: 20 }}>{error || "Product not found"}</Text>
+                <TouchableOpacity onPress={() => router.back()} style={styles.addToCartButton}>
+                    <Text style={styles.addToCartText}>Go Back</Text>
+                </TouchableOpacity>
+            </SafeAreaView>
+        );
+    }
+
+    const hasImages = product.imageUrls && product.imageUrls.length > 0;
+    const isOutOfStock = product.stock <= 0;
 
     // Get current quantity
-    const quantity = getItemQuantity(product.id);
+    const quantity = getItemQuantity(product.id.toString());
 
     const handleAddToCart = () => {
         addToCart(product);
     };
 
     const handleUpdateQuantity = (newQty: number) => {
-        updateQuantity(product.id, newQty);
+        updateQuantity(product.id.toString(), newQty);
     };
 
     const handleQuantityTextChange = (text: string) => {
         const qty = parseInt(text);
         if (!isNaN(qty)) {
-            updateQuantity(product.id, qty);
+            updateQuantity(product.id.toString(), qty);
         }
     };
+
+    // Parse prices
+    const price = Number(product.price);
+    const salePrice = product.salePrice ? Number(product.salePrice) : 0;
+    const currentPrice = salePrice > 0 ? salePrice : price;
 
     return (
         <View style={styles.container}>
@@ -64,7 +109,7 @@ export default function ProductDetailsScreen() {
                     {hasImages ? (
                         <>
                             <FlatList
-                                data={product.images}
+                                data={product.imageUrls}
                                 horizontal
                                 pagingEnabled
                                 showsHorizontalScrollIndicator={false}
@@ -81,9 +126,9 @@ export default function ProductDetailsScreen() {
                                     />
                                 )}
                             />
-                            {product.images.length > 1 && (
+                            {product.imageUrls.length > 1 && (
                                 <View style={styles.pagination}>
-                                    {product.images.map((_, index) => (
+                                    {product.imageUrls.map((_, index) => (
                                         <View
                                             key={index}
                                             style={[
@@ -121,24 +166,24 @@ export default function ProductDetailsScreen() {
                     </View>
 
                     <Text style={styles.name}>{product.name}</Text>
-                    {product.salt && (
-                        <Text style={styles.salt}>{product.salt}</Text>
+                    {product.salt && product.salt.length > 0 && (
+                        <Text style={styles.salt}>{product.salt[0]}</Text>
                     )}
 
                     <View style={styles.priceRow}>
                         <View>
                             <Text style={styles.label}>Price</Text>
                             <View style={styles.priceContainer}>
-                                <Text style={styles.price}>₹{product.salePrice || product.price}</Text>
-                                {product.salePrice && (
-                                    <Text style={styles.originalPrice}>₹{product.price}</Text>
+                                <Text style={styles.price}>₹{currentPrice}</Text>
+                                {salePrice > 0 && (
+                                    <Text style={styles.originalPrice}>₹{price}</Text>
                                 )}
                             </View>
                         </View>
-                        {product.salePrice && (
+                        {salePrice > 0 && (
                             <View style={styles.discountTag}>
                                 <Text style={styles.discountTagText}>
-                                    {Math.round(((product.price - product.salePrice) / product.price) * 100)}% Save
+                                    {Math.round(((price - salePrice) / price) * 100)}% Save
                                 </Text>
                             </View>
                         )}
@@ -148,7 +193,7 @@ export default function ProductDetailsScreen() {
 
                     {/* Description */}
                     <Text style={styles.sectionTitle}>Description</Text>
-                    <Text style={styles.description}>{product.description}</Text>
+                    <Text style={styles.description}>{product.description || "No description available."}</Text>
 
                     <View style={styles.divider} />
 
@@ -156,7 +201,7 @@ export default function ProductDetailsScreen() {
                     <Text style={styles.sectionTitle}>Product Details</Text>
                     <View style={styles.detailRow}>
                         <Text style={styles.detailLabel}>SKU</Text>
-                        <Text style={styles.detailValue}>{product.sku}</Text>
+                        <Text style={styles.detailValue}>{product.sku || "N/A"}</Text>
                     </View>
                     <View style={styles.detailRow}>
                         <Text style={styles.detailLabel}>Category</Text>
@@ -178,7 +223,7 @@ export default function ProductDetailsScreen() {
                     <View style={styles.quantityContainer}>
                         <View style={{ flex: 1 }}>
                             <Text style={styles.quantityLabel}>Quantity</Text>
-                            <Text style={styles.quantityTotal}>Total: ₹{(product.salePrice || product.price) * quantity}</Text>
+                            <Text style={styles.quantityTotal}>Total: ₹{currentPrice * quantity}</Text>
                         </View>
                         <QuantitySelector
                             quantity={quantity}

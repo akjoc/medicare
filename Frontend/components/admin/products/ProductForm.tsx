@@ -38,7 +38,7 @@ export default function ProductForm({
         description: initialValues?.description || "",
         sku: initialValues?.sku || "",
         status: initialValues?.status || "active",
-        images: initialValues?.images || [],
+        images: initialValues?.images || ["https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSv_RpR5QX0isgvEwZffZ2RnFl1PdJn-kr4Jg&s"],
         salt: initialValues?.salt || [],
         company: initialValues?.company || "",
         buyingPrice: initialValues?.buyingPrice?.toString() || "",

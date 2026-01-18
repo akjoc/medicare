@@ -20,7 +20,6 @@ export async function login(email: string, password: string): Promise<User> {
     const user = response.data;
 
 
-
     if (user.token) {
       await AsyncStorage.setItem(AUTH_TOKEN_KEY, user.token);
     }

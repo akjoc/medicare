@@ -1,18 +1,18 @@
-import { Product } from "@/data/mockProducts";
+import { APIProduct } from "@/types/api";
 import React, { createContext, useContext, useState } from "react";
 
 export interface CartItem {
-    product: Product;
+    product: APIProduct;
     quantity: number;
 }
 
 interface CartContextType {
     items: CartItem[];
-    addToCart: (product: Product) => void;
+    addToCart: (product: APIProduct) => void;
     removeFromCart: (productId: string) => void;
     updateQuantity: (productId: string, quantity: number) => void;
     clearCart: () => void;
-    getItemQuantity: (productId: string) => number;
+    getItemQuantity: (productId: string | number) => number;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -52,7 +52,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         }
     }, [items, isLoaded]);
 
-    const addToCart = (product: Product) => {
+    const addToCart = (product: APIProduct) => {
         setItems((currentItems) => {
             const existingItem = currentItems.find((item) => item.product.id === product.id);
             if (existingItem) {
@@ -67,17 +67,20 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     };
 
     const removeFromCart = (productId: string) => {
-        setItems((currentItems) => currentItems.filter((item) => item.product.id !== productId));
+        // Convert to number for comparison since APIProduct id is number
+        const idNum = Number(productId);
+        setItems((currentItems) => currentItems.filter((item) => item.product.id !== idNum));
     };
 
     const updateQuantity = (productId: string, quantity: number) => {
+        const idNum = Number(productId);
         if (quantity < 1) {
             removeFromCart(productId);
             return;
         }
         setItems((currentItems) =>
             currentItems.map((item) =>
-                item.product.id === productId ? { ...item, quantity } : item
+                item.product.id === idNum ? { ...item, quantity } : item
             )
         );
     };
@@ -86,8 +89,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         setItems([]);
     };
 
-    const getItemQuantity = (productId: string) => {
-        return items.find((item) => item.product.id === productId)?.quantity || 0;
+    const getItemQuantity = (productId: string | number) => {
+        const idNum = Number(productId);
+        return items.find((item) => item.product.id === idNum)?.quantity || 0;
     };
 
     return (

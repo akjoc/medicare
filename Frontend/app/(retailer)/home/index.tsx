@@ -1,11 +1,13 @@
 import ProductCard from "@/components/retailer/ProductCard";
 import { APP_CONFIG } from "@/constants/app";
-import { MOCK_CATEGORIES, MOCK_PRODUCTS, Product } from "@/data/mockProducts";
+import { retailerCategoryService } from "@/services/retailerCategory.service";
+import { retailerProductService } from "@/services/retailerProduct.service";
 import { colors } from "@/styles/colors";
+import { APICategory, APIProduct } from "@/types/api";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useState } from "react";
-import { Dimensions, FlatList, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, Dimensions, FlatList, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const { width } = Dimensions.get("window");
@@ -14,13 +16,84 @@ export default function HomeScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
 
+    // Data State
+    const [products, setProducts] = useState<APIProduct[]>([]);
+    const [categories, setCategories] = useState<APICategory[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isMoreLoading, setIsMoreLoading] = useState(false);
+
+    // Pagination State
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+
     // Search State
     const [searchQuery, setSearchQuery] = useState("");
-    const [searchResults, setSearchResults] = useState<Product[]>([]);
+    const [searchResults, setSearchResults] = useState<APIProduct[]>([]);
     const [showResults, setShowResults] = useState(false);
 
+    useEffect(() => {
+        fetchData();
+    }, []);
+
+    const fetchData = async () => {
+        try {
+            setIsLoading(true);
+            const [productsResponse, categoriesData] = await Promise.all([
+                retailerProductService.getProducts(1),
+                retailerCategoryService.getAllCategories(),
+            ]);
+
+            setProducts(productsResponse.products);
+            setTotalPages(productsResponse.totalPages);
+            setPage(1);
+
+            // Flatten categories to show sections for subcategories too
+            const flattened: APICategory[] = [];
+            const flatten = (cats: APICategory[]) => {
+                cats.forEach(c => {
+                    flattened.push(c);
+                    if (c.subCategories && c.subCategories.length > 0) {
+                        flatten(c.subCategories);
+                    }
+                });
+            };
+            flatten(categoriesData);
+            setCategories(flattened);
+        } catch (error) {
+            console.error("Error fetching data:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const loadMoreProducts = async () => {
+        if (isMoreLoading || page >= totalPages) return;
+
+        try {
+            setIsMoreLoading(true);
+            const nextPage = page + 1;
+            console.log(`Loading more products: page ${nextPage}`);
+
+            const response = await retailerProductService.getProducts(nextPage);
+
+            setProducts(prev => [...prev, ...response.products]);
+            setPage(nextPage);
+            setTotalPages(response.totalPages);
+        } catch (error) {
+            console.error("Error loading more products:", error);
+        } finally {
+            setIsMoreLoading(false);
+        }
+    };
+
+    const isCloseToBottom = ({ layoutMeasurement, contentOffset, contentSize }: any) => {
+        const paddingToBottom = 20;
+        return layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom;
+    };
+
+
     // Filter Logic
-    const handleSearch = (text: string) => {
+    const handleSearch = async (text: string) => {
         setSearchQuery(text);
         if (text.trim().length === 0) {
             setSearchResults([]);
@@ -28,14 +101,13 @@ export default function HomeScreen() {
             return;
         }
 
-        const lowerText = text.toLowerCase();
-        const filtered = MOCK_PRODUCTS.filter(p =>
-            p.name.toLowerCase().includes(lowerText) ||
-            p.salt?.toLowerCase().includes(lowerText)
-        ).slice(0, 5); // Limit to 5 max
-
-        setSearchResults(filtered);
-        setShowResults(true);
+        try {
+            const results = await retailerProductService.searchProducts(text);
+            setSearchResults(results.products.slice(0, 5));
+            setShowResults(true);
+        } catch (error) {
+            console.error("Error searching products:", error);
+        }
     };
 
     const renderHeader = () => (
@@ -86,7 +158,7 @@ export default function HomeScreen() {
                                 <Ionicons name="medical-outline" size={16} color={colors.textLight} style={{ marginRight: 10 }} />
                                 <View style={{ flex: 1 }}>
                                     <Text style={styles.resultName}>{item.name}</Text>
-                                    {item.salt && <Text style={styles.resultSalt} numberOfLines={1}>{item.salt}</Text>}
+                                    {item.salt && item.salt.length > 0 && <Text style={styles.resultSalt} numberOfLines={1}>{item.salt[0]}</Text>}
                                 </View>
                                 <Ionicons name="chevron-forward" size={16} color={colors.textLight} />
                             </TouchableOpacity>
@@ -132,14 +204,14 @@ export default function HomeScreen() {
         </View>
     );
 
-    const renderSection = (categoryName: string, data: Product[]) => {
+    const renderSection = (categoryName: string, categoryId: number, data: APIProduct[]) => {
         if (!data || data.length === 0) return null;
 
         return (
             <View style={styles.sectionContainer} key={categoryName}>
                 <View style={styles.sectionHeader}>
                     <Text style={styles.sectionTitle}>{categoryName}</Text>
-                    <TouchableOpacity>
+                    <TouchableOpacity onPress={() => router.push(`/(retailer)/categories/${categoryId}`)}>
                         <Text style={styles.seeAll}>See All</Text>
                     </TouchableOpacity>
                 </View>
@@ -161,6 +233,14 @@ export default function HomeScreen() {
         );
     };
 
+    if (isLoading) {
+        return (
+            <View style={[styles.container, styles.loadingContainer]}>
+                <ActivityIndicator size="large" color={colors.primary} />
+            </View>
+        );
+    }
+
     return (
         <View style={styles.container}>
             <StatusBar barStyle="light-content" backgroundColor={colors.primary} />
@@ -170,14 +250,25 @@ export default function HomeScreen() {
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled" // Important for search clicks
+                onScroll={({ nativeEvent }) => {
+                    if (isCloseToBottom(nativeEvent)) {
+                        loadMoreProducts();
+                    }
+                }}
+                scrollEventThrottle={400}
             >
                 {renderBanner()}
                 {renderQuickActions()}
 
                 {/* Dynamic Categories */}
-                {MOCK_CATEGORIES.map(category => {
-                    const categoryProducts = MOCK_PRODUCTS.filter(p => p.categoryId === category.id);
-                    return renderSection(category.name, categoryProducts);
+                {categories.map(category => {
+                    const categoryProducts = products.filter(p => {
+                        return p.CategoryId === category.id;
+                    });
+
+                    if (categoryProducts.length === 0) return null;
+
+                    return renderSection(category.name, category.id, categoryProducts);
                 })}
 
             </ScrollView>
@@ -189,6 +280,10 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: colors.background,
+    },
+    loadingContainer: {
+        justifyContent: "center",
+        alignItems: "center",
     },
     headerContainer: {
         backgroundColor: colors.primary,

@@ -78,7 +78,7 @@ function RetailerTabs() {
 
             {/* ACCOUNT */}
             <Tabs.Screen
-                name="account/index"
+                name="account"
                 options={{
                     title: "Account",
                     tabBarIcon: ({ color, size }) => (
@@ -96,6 +96,18 @@ function RetailerTabs() {
             />
             <Tabs.Screen
                 name="product/[id]"
+                options={{
+                    href: null,
+                }}
+            />
+            <Tabs.Screen
+                name="orders/index"
+                options={{
+                    href: null,
+                }}
+            />
+            <Tabs.Screen
+                name="orders/[id]"
                 options={{
                     href: null,
                 }}

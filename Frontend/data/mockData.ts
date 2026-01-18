@@ -7,7 +7,7 @@ import { Retailer } from "@/components/admin/retailers/RetailerForm";
 export const MOCK_RETAILERS: Retailer[] = [
     {
         id: "1",
-        name: "John Doe",
+        ownerName: "John Doe",
         shopName: "Medicare Pharmacy",
         email: "john@medicare.com",
         phone: "9876543210",
@@ -19,7 +19,7 @@ export const MOCK_RETAILERS: Retailer[] = [
     },
     {
         id: "2",
-        name: "Jane Smith",
+        ownerName: "Jane Smith",
         shopName: "City Health Store",
         email: "jane@cityhealth.com",
         phone: "9876500000",
@@ -31,7 +31,7 @@ export const MOCK_RETAILERS: Retailer[] = [
     },
     {
         id: "3",
-        name: "Robert Johnson",
+        ownerName: "Robert Johnson",
         shopName: "Wellness Chemist",
         email: "robert@wellness.com",
         phone: "9800043210",
