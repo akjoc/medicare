@@ -7,31 +7,47 @@ const { cloudinary } = require('../config/cloudinaryConfig');
 const { getDescendantCategoryIds } = require('../utils/categoryHelpers');
 const xlsx = require('xlsx');
 
+// Helper to clean response
+const getCleanProduct = (productInstance) => {
+    if (!productInstance) return null;
+    const plain = productInstance.get ? productInstance.get({ plain: true }) : productInstance;
+    if (plain.CategoryId !== undefined) delete plain.CategoryId;
+    if (plain.publicIds !== undefined) delete plain.publicIds;
+    return plain;
+};
+
 // Create Product
 const createProduct = async (req, res) => {
     try {
-        const { name, description, price, buyingPrice, salePrice, companies, stock, categoryId, salt, sku } = req.body;
+        const { name, description, price, buyingPrice, salePrice, companies, stock, categoryId, categoryIds, salt, sku, dosage, packing } = req.body;
 
-        // Check if category provided
-        if (!categoryId) {
-            // Delete uploaded images (if any) since we are not going to save the product
-            if (req.files) {
-                for (const file of req.files) {
-                    await cloudinary.uploader.destroy(file.filename);
-                }
-            }
-            return res.status(400).json({ error: 'Please provide a categoryId' });
+        // Check if category provided (Handle single or array)
+        let targetCategoryIds = [];
+        if (categoryIds && Array.isArray(categoryIds)) {
+            targetCategoryIds = categoryIds;
+        } else if (categoryId) {
+            targetCategoryIds = Array.isArray(categoryId) ? categoryId : [categoryId];
         }
 
-        // Validate Category Exists
-        const categoryExists = await Category.findByPk(categoryId);
-        if (!categoryExists) {
+        if (targetCategoryIds.length === 0) {
+            // Delete uploaded images
             if (req.files) {
                 for (const file of req.files) {
                     await cloudinary.uploader.destroy(file.filename);
                 }
             }
-            return res.status(400).json({ error: 'Category not found' });
+            return res.status(400).json({ error: 'Please provide categoryIds (array) or categoryId' });
+        }
+
+        // Validate Categories Exist
+        const validCategoriesCount = await Category.count({ where: { id: targetCategoryIds } });
+        if (validCategoriesCount !== targetCategoryIds.length) {
+            if (req.files) {
+                for (const file of req.files) {
+                    await cloudinary.uploader.destroy(file.filename);
+                }
+            }
+            return res.status(400).json({ error: 'One or more categories not found' });
         }
 
         // Check if product with same name exists
@@ -89,12 +105,27 @@ const createProduct = async (req, res) => {
             companies: parseArrayField(companies),
             stock,
             salt: parseArrayField(salt),
-            CategoryId: categoryId,
+
+            // CategoryId: categoryId, // Deprecated
             imageUrls: imageUrls, // Store array
-            publicIds: publicIds // Store array
+            publicIds: publicIds, // Store array
+            dosage, // Add Dosage
+            packing // Add Packing
         });
 
-        res.status(201).json(product);
+        if (targetCategoryIds.length > 0) {
+            await product.setCategories(targetCategoryIds);
+        }
+
+        // Fetch fresh product with categories
+        // Fetch fresh product with categories
+        const freshProduct = await Product.findByPk(product.id, {
+            include: {
+                model: Category,
+                through: { attributes: [] }
+            }
+        });
+        res.status(201).json(getCleanProduct(freshProduct));
     } catch (error) {
         console.error("Create Product Error:", error);
         if (error.name === 'SequelizeValidationError' || error.name === 'SequelizeUniqueConstraintError') {
@@ -112,7 +143,10 @@ const getAllProducts = async (req, res) => {
         const offset = (page - 1) * limit;
 
         let queryOptions = {
-            include: [{ model: Category }],
+            include: [{
+                model: Category,
+                through: { attributes: [] }
+            }],
             limit,
             offset,
             order: [['createdAt', 'DESC']],
@@ -166,8 +200,18 @@ const getAllProducts = async (req, res) => {
 
         const { count, rows } = await Product.findAndCountAll(queryOptions);
 
+        // Sanitize response: Remove 'CategoryId' (uppercase) if 'categoryId' (lowercase) exists or just cleanup
+        const cleanRows = rows.map(p => {
+            const plain = p.get({ plain: true });
+            if (plain.CategoryId !== undefined) delete plain.CategoryId;
+            if (plain.publicIds !== undefined) delete plain.publicIds; // Remove publicIds
+            // Ensure lowercase categoryId is present if missing (optional, but good for consistency)
+            // if (!plain.categoryId && plain.CategoryId) plain.categoryId = plain.CategoryId; 
+            return plain;
+        });
+
         res.status(200).json({
-            products: rows,
+            products: cleanRows,
             totalProducts: count,
             totalPages: Math.ceil(count / limit),
             currentPage: parseInt(page)
@@ -180,9 +224,14 @@ const getAllProducts = async (req, res) => {
 // Get Product by ID
 const getProductById = async (req, res) => {
     try {
-        const product = await Product.findByPk(req.params.id);
+        const product = await Product.findByPk(req.params.id, {
+            include: {
+                model: Category,
+                through: { attributes: [] } // Exclude junction table data
+            }
+        });
         if (product) {
-            res.status(200).json(product);
+            res.status(200).json(getCleanProduct(product));
         } else {
             res.status(404).json({ error: 'Product not found' });
         }
@@ -194,7 +243,7 @@ const getProductById = async (req, res) => {
 // Update Product
 const updateProduct = async (req, res) => {
     try {
-        const { name, description, price, buyingPrice, salePrice, companies, stock, salt, sku } = req.body;
+        const { name, description, price, buyingPrice, salePrice, companies, stock, salt, sku, dosage, packing, categoryIds } = req.body;
         // Handle both camelCase and PascalCase for categoryId
         const categoryId = req.body.categoryId || req.body.CategoryId;
 
@@ -224,16 +273,27 @@ const updateProduct = async (req, res) => {
             salePrice,
             companies: parseArrayField(companies),
             stock,
-            salt: parseArrayField(salt)
+            salt: parseArrayField(salt),
+            dosage, // Add Dosage
+            packing // Add Packing
         };
 
-        if (categoryId) {
-            // Validate Category Exists
-            const categoryExists = await Category.findByPk(categoryId);
-            if (!categoryExists) {
-                return res.status(400).json({ error: 'Category not found' });
+        // Handle Categories Update
+        if (categoryIds || categoryId) {
+            let targetCategoryIds = [];
+            if (categoryIds && Array.isArray(categoryIds)) {
+                targetCategoryIds = categoryIds;
+            } else if (categoryId) {
+                targetCategoryIds = Array.isArray(categoryId) ? categoryId : [categoryId];
             }
-            updatedData.CategoryId = categoryId;
+
+            // Validate
+            const validCategoriesCount = await Category.count({ where: { id: targetCategoryIds } });
+            if (validCategoriesCount !== targetCategoryIds.length) {
+                return res.status(400).json({ error: 'One or more categories not found' });
+            }
+
+            await product.setCategories(targetCategoryIds);
         }
 
         // If new images are uploaded, replace old ones (Strategy: Replace All)
@@ -255,7 +315,15 @@ const updateProduct = async (req, res) => {
 
         await product.update(updatedData);
 
-        res.status(200).json(product);
+        // Fetch fresh instance (optional, but good for clean response)
+        // Or just clean the updated instance
+        const updatedProduct = await Product.findByPk(req.params.id, {
+            include: {
+                model: Category,
+                through: { attributes: [] }
+            }
+        });
+        res.status(200).json(getCleanProduct(updatedProduct));
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -389,7 +457,7 @@ const bulkUploadProducts = async (req, res) => {
 
                 let rawPrice = row.price || row.Price || row['MRP'];
                 let rawBuyingPrice = row['Buying Price'] || row['buying price'];
-                let rawSalePrice = row['price_1'] || row['Price_1'] || row['Sale Price'] || row['selling price'];
+                let rawSalePrice = row['sale price'] || row['Sale price'] || row['price_1'] || row['Price_1'] || row['Sale Price'] || row['selling price'];
 
                 let price = cleanPrice(rawPrice);
                 let buyingPrice = cleanPrice(rawBuyingPrice);
@@ -401,21 +469,25 @@ const bulkUploadProducts = async (req, res) => {
                     companies.push(String(row.Company || row.COMPANY || row.company).trim());
                 }
 
-                // Salt -> salt (Array, split by '+')
+                // Salt -> salt (Array, split by '|')
                 let saltArray = [];
                 const rawSalt = row.salt || row.Salt || row.SALT;
                 if (rawSalt) {
-                    // "Amoxycillin 250mg + Clavulanic acid 125mg"
-                    saltArray = String(rawSalt).split('+').map(s => s.trim());
+                    // "Amoxycillin 250mg | Clavulanic acid 125mg"
+                    saltArray = String(rawSalt).split('|').map(s => s.trim());
                 }
 
                 // Description parts
                 let descriptionParts = [];
                 if (row.Composition) descriptionParts.push(`Composition: ${row.Composition}`);
-                if (row.Dosage) descriptionParts.push(`Dosage: ${row.Dosage}`);
-                if (row.Packing) descriptionParts.push(`Packing: ${row.Packing}`);
+                // if (row.Dosage) descriptionParts.push(`Dosage: ${row.Dosage}`); // Removed
+                // if (row.Packing) descriptionParts.push(`Packing: ${row.Packing}`); // Removed
                 if (row.Description) descriptionParts.push(row.Description);
                 const finalDescription = descriptionParts.join(' | ');
+
+                // Dosage & Packing
+                const dosage = row.Dosage || row.dosage || null;
+                const packing = row.Packing || row.packing || null;
 
                 const stock = row.Stock || row.stock || 0;
 
@@ -497,7 +569,7 @@ const bulkUploadProducts = async (req, res) => {
                     continue;
                 }
 
-                await Product.create({
+                const product = await Product.create({
                     name,
                     sku, // Add SKU
                     description: finalDescription,
@@ -507,10 +579,16 @@ const bulkUploadProducts = async (req, res) => {
                     companies: companies, // Array
                     stock,
                     salt: saltArray, // Array
-                    CategoryId: targetCategoryId,
+                    // CategoryId: targetCategoryId, // Deprecated
                     imageUrls: ["https://res.cloudinary.com/dhvch5umt/image/upload/v1768724782/medical-equipments-500x500_ul7oua.webp"],
-                    publicIds: []
+                    publicIds: [],
+                    dosage,
+                    packing
                 });
+
+                if (targetCategoryId) {
+                    await product.setCategories([targetCategoryId]);
+                }
 
                 successCount++;
             } catch (err) {

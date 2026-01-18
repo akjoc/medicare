@@ -1,6 +1,6 @@
 const { DataTypes } = require('sequelize');
 const { sequelize } = require('../config/database');
-const Category = require('./category');
+
 
 const Product = sequelize.define('Product', {
     id: {
@@ -57,18 +57,27 @@ const Product = sequelize.define('Product', {
         allowNull: false,
         defaultValue: []
     },
-    CategoryId: {
-        type: DataTypes.INTEGER,
-        references: {
-            model: Category,
-            key: 'id',
-        }
+    // categoryId: { // DEPRECATED: Moving to Many-to-Many
+    //     type: DataTypes.INTEGER,
+    //     references: {
+    //         model: Category,
+    //         key: 'id'
+    //     },
+    //     onDelete: 'SET NULL',
+    //     onUpdate: 'CASCADE'
+    // },
+    dosage: {
+        type: DataTypes.STRING,
+        allowNull: true
+    },
+    packing: {
+        type: DataTypes.STRING,
+        allowNull: true
     }
 }, {
     timestamps: true
 });
 
-Product.belongsTo(Category);
-Category.hasMany(Product);
+
 
 module.exports = Product;
