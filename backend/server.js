@@ -7,6 +7,9 @@ const retailerRoutes = require('./routes/retailerRoutes');
 const productRoutes = require('./routes/productRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
 
+// Initialize Associations (Must be before routes use models if possible, or definitely before server starts)
+require('./models/associations');
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -22,6 +25,8 @@ app.use('/api/categories', categoryRoutes);
 
 // Database Connection & Server Start
 const startServer = async () => {
+
+
     await connectDB();
 
     // Sync models with database
