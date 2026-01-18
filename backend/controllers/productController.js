@@ -429,6 +429,74 @@ const bulkUploadProducts = async (req, res) => {
         // 4. Parse Data with correct Header Row
         const rows = xlsx.utils.sheet_to_json(sheet, { range: headerRowIndex });
 
+        // --- DYNAMIC COLUMN LOGIC START ---
+        // 1. Identify all headers from the first valid row (or merged from a few rows if needed, but usually first is enough)
+        if (rows.length > 0) {
+            const potentialHeaders = Object.keys(rows[0]);
+
+            // 2. Fetch Existing DB Columns
+            const [dbColumns] = await sequelize.query("DESCRIBE Products");
+            const existingColumnNames = new Set(dbColumns.map(c => c.Field.toLowerCase()));
+
+            // 3. Define Known/Standard Columns (to ignore)
+            // precise keys we already handle manually
+            const standardKeys = new Set([
+                'name', 'product name',
+                'sku', 'id',
+                'description',
+                'price', 'mrp',
+                'buying price', 'buyingprice',
+                'sale price', 'saleprice', 'selling price', 'price_1',
+                'company', 'companies',
+                'stock',
+                'salt',
+                'dosage',
+                'packing',
+                'category', 'composition',
+                'imageurls', 'publicids', 'createdat', 'updatedat'
+            ]);
+
+            // 4. Identify New Columns
+            const dynamicMappings = []; // { header: "Flavor", dbColumn: "flavor" }
+
+            for (const header of potentialHeaders) {
+                const lowerHeader = header.toLowerCase().trim();
+                // Check if it's a standard key (fuzzy match usually handled in code, but here we just check our set)
+                // We strictly map specific headers in the loop. Anything else is "Dynamic".
+                if (standardKeys.has(lowerHeader)) continue;
+
+                // Sanitize for DB Column Name
+                // "Expiry Date" -> "expiry_date"
+                let dbColumn = lowerHeader.replace(/[^a-z0-9_]+/g, '_').replace(/^_+|_+$/g, '');
+
+                if (!dbColumn) continue; // Skip empty/special char only headers
+
+                // Store mapping
+                dynamicMappings.push({ header, dbColumn });
+
+                // 5. Alter Table if Column doesn't exist
+                if (!existingColumnNames.has(dbColumn)) {
+                    console.log(`Dynamic Schema: Adding column '${dbColumn}' for header '${header}'...`);
+                    try {
+                        // Use raw query to add column. Default VARCHAR(255) is safe for generic text.
+                        // Escape column name to prevent SQL injection issues (though regex above cleans it)
+                        await sequelize.query(`ALTER TABLE Products ADD COLUMN \`${dbColumn}\` VARCHAR(255) DEFAULT NULL;`);
+                        existingColumnNames.add(dbColumn); // Update local set
+                    } catch (alterErr) {
+                        // Ignore if duplicate error, otherwise log
+                        if (alterErr.original && alterErr.original.code !== 'ER_DUP_FIELDNAME') {
+                            console.error(`Failed to add column '${dbColumn}':`, alterErr.message);
+                        }
+                    }
+                }
+            }
+
+            // Attach mappings to request or local scope for use in loop using a wrapper logic
+            // (We will use 'dynamicMappings' inside the loop)
+            req.dynamicMappings = dynamicMappings;
+        }
+        // --- DYNAMIC COLUMN LOGIC END ---
+
         let successCount = 0;
         let failedCount = 0;
         let errors = [];
@@ -591,6 +659,37 @@ const bulkUploadProducts = async (req, res) => {
                 if (targetCategoryId) {
                     await product.setCategories([targetCategoryId]);
                 }
+
+                // --- DYNAMIC DATA INSERTION START ---
+                if (req.dynamicMappings && req.dynamicMappings.length > 0) {
+                    const updates = {};
+                    const replacements = [];
+
+                    for (const mapping of req.dynamicMappings) {
+                        const val = row[mapping.header];
+                        if (val !== undefined && val !== null && val !== '') {
+                            updates[mapping.dbColumn] = val;
+                        }
+                    }
+
+                    if (Object.keys(updates).length > 0) {
+                        // Build Update Query: "UPDATE Products SET col1 = ?, col2 = ? WHERE id = ?"
+                        const setClauses = Object.keys(updates).map(col => `\`${col}\` = ?`).join(', ');
+                        const values = Object.values(updates);
+                        values.push(product.id);
+
+                        try {
+                            await sequelize.query(
+                                `UPDATE Products SET ${setClauses} WHERE id = ?`,
+                                { replacements: values }
+                            );
+                        } catch (dynErr) {
+                            console.error(`Row ${rowNumber}: Failed to save dynamic fields:`, dynErr.message);
+                            // Don't fail the whole row, just log
+                        }
+                    }
+                }
+                // --- DYNAMIC DATA INSERTION END ---
 
                 successCount++;
             } catch (err) {
