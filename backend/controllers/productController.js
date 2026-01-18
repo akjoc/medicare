@@ -508,7 +508,7 @@ const bulkUploadProducts = async (req, res) => {
                     stock,
                     salt: saltArray, // Array
                     CategoryId: targetCategoryId,
-                    imageUrls: [],
+                    imageUrls: ["https://res.cloudinary.com/dhvch5umt/image/upload/v1768724782/medical-equipments-500x500_ul7oua.webp"],
                     publicIds: []
                 });
 
