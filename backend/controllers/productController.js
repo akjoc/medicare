@@ -145,6 +145,7 @@ const getAllProducts = async (req, res) => {
         let queryOptions = {
             include: [{
                 model: Category,
+                as: 'Categories',
                 through: { attributes: [] }
             }],
             limit,
@@ -160,7 +161,7 @@ const getAllProducts = async (req, res) => {
                     // Fix: Cast JSON columns to CHAR for LIKE search
                     sequelize.where(sequelize.fn('LOWER', sequelize.cast(sequelize.col('salt'), 'CHAR')), { [Op.like]: `%${search.toLowerCase()}%` }),
                     sequelize.where(sequelize.fn('LOWER', sequelize.cast(sequelize.col('companies'), 'CHAR')), { [Op.like]: `%${search.toLowerCase()}%` }),
-                    { '$Category.name$': { [Op.like]: `%${search}%` } }
+                    { '$Categories.name$': { [Op.like]: `%${search}%` } }
                 ]
             };
         }
@@ -187,12 +188,13 @@ const getAllProducts = async (req, res) => {
                     if (!queryOptions.where) queryOptions.where = {};
 
                     // Op.and ensures both conditions must be met (Search + Permission)
-                    queryOptions.where = {
-                        [Op.and]: [
-                            queryOptions.where,
-                            { CategoryId: { [Op.in]: expandedCategoryIds } }
-                        ]
-                    };
+                    // Filter via Association (Inner Join)
+                    // We modify the include to apply the where clause on the joined table
+                    if (queryOptions.include && queryOptions.include[0]) {
+                        queryOptions.include[0].where = { id: { [Op.in]: expandedCategoryIds } };
+                        queryOptions.include[0].required = true; // Inner join to enforce filter
+                    }
+                    // Note: No need to touch top-level queryOptions.where for this anymore
                 }
                 // Else: Do nothing, let them see all products
             }
