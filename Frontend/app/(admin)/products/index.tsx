@@ -141,8 +141,15 @@ export default function ProductsScreen() {
     };
 
     const handleBulkUpload = async (file: any, onProgress: (p: number) => void) => {
-        // TODO: Implement bulk upload API when available
-        Alert.alert("Coming Soon", "Bulk upload feature will be available soon");
+        try {
+            await productService.bulkUploadProducts(file, onProgress);
+            // Refresh list after successful upload
+            loadData(false);
+        } catch (error: any) {
+            console.error("Bulk upload error:", error);
+            // Propagate error to modal for handling
+            throw error;
+        }
     };
 
     const renderFooter = () => {

@@ -1,5 +1,6 @@
 import { privateClient } from "@/api/client";
 import { ENDPOINTS } from "@/api/endpoint";
+import { Platform } from "react-native";
 
 export interface ProductPayload {
     name: string;
@@ -76,6 +77,44 @@ export const productService = {
     deleteProduct: async (id: string) => {
         try {
             const response = await privateClient.delete(ENDPOINTS.DELETE_PRODUCT(id));
+            return response.data;
+        } catch (error) {
+            throw error;
+        }
+    },
+
+    bulkUploadProducts: async (file: any, onProgress?: (progress: number) => void) => {
+        try {
+            const formData = new FormData();
+
+            if (Platform.OS === 'web') {
+                if (file.file) {
+                    formData.append('file', file.file);
+                } else {
+                    // Fallback if file object is missing but we have uri
+                    const response = await fetch(file.uri);
+                    const blob = await response.blob();
+                    formData.append('file', blob, file.name);
+                }
+            } else {
+                formData.append('file', {
+                    uri: file.uri,
+                    name: file.name,
+                    type: file.mimeType || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                } as any);
+            }
+
+            const response = await privateClient.post(ENDPOINTS.BULK_UPLOAD_PRODUCTS, formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                },
+                onUploadProgress: (progressEvent) => {
+                    if (onProgress && progressEvent.total) {
+                        const progress = progressEvent.loaded / progressEvent.total;
+                        onProgress(progress);
+                    }
+                },
+            });
             return response.data;
         } catch (error) {
             throw error;

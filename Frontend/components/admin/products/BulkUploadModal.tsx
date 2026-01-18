@@ -1,7 +1,8 @@
 import { colors } from "@/styles/colors";
 import { Ionicons } from "@expo/vector-icons";
+import * as DocumentPicker from "expo-document-picker";
 import { useState } from "react";
-import { Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 interface BulkUploadModalProps {
     visible: boolean;
@@ -15,15 +16,33 @@ export default function BulkUploadModal({ visible, onClose, onUpload }: BulkUplo
     const [completed, setCompleted] = useState(false);
 
     const handleUpload = async () => {
-        setUploading(true);
-        setProgress(0);
-        setCompleted(false);
-
         try {
-            // Simulate file selection (mock)
-            const mockFile = { name: "products.xlsx", size: 1024 * 1024 };
+            const result = await DocumentPicker.getDocumentAsync({
+                type: [
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // .xlsx
+                    "text/csv", // .csv
+                    "application/vnd.ms-excel" // .xls
+                ],
+                copyToCacheDirectory: true,
+            });
 
-            await onUpload(mockFile, (p) => {
+            if (result.canceled) {
+                return;
+            }
+
+            const file = result.assets[0];
+
+            // Check file size (5MB limit)
+            if (file.size && file.size > 5 * 1024 * 1024) {
+                Alert.alert("Error", "File size exceeds 5MB limit");
+                return;
+            }
+
+            setUploading(true);
+            setProgress(0);
+            setCompleted(false);
+
+            await onUpload(file, (p) => {
                 setProgress(p);
             });
 
@@ -37,8 +56,10 @@ export default function BulkUploadModal({ visible, onClose, onUpload }: BulkUplo
                     setCompleted(false);
                 }, 500);
             }, 1500);
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
+            const message = error.response?.data?.message || error.message || "Failed to upload file";
+            Alert.alert("Error", message);
             setUploading(false);
         }
     };
