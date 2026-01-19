@@ -231,6 +231,14 @@ const getAllProducts = async (req, res) => {
             const plain = p;
             if (plain.CategoryId !== undefined) delete plain.CategoryId;
             if (plain.publicIds !== undefined) delete plain.publicIds; // Remove publicIds
+
+            // Remove accidental dynamic columns
+            delete plain.imageurl;
+            delete plain['s.no'];
+            delete plain.sno;
+            delete plain['no.'];
+            delete plain.s_no;
+
             return plain;
         });
 
@@ -267,7 +275,15 @@ const getProductById = async (req, res) => {
             const plain = product.get({ plain: true });
             const merged = { ...(rawProduct || {}), ...plain };
 
-            res.status(200).json(getCleanProduct(merged));
+            // Helper to clean helper keys from final response
+            const response = getCleanProduct(merged);
+            if (response.imageurl) delete response.imageurl;
+            if (response['s.no']) delete response['s.no'];
+            if (response.sno) delete response.sno;
+            if (response['no.']) delete response['no.'];
+            if (response.s_no) delete response.s_no;
+
+            res.status(200).json(response);
         } else {
             res.status(404).json({ error: 'Product not found' });
         }
