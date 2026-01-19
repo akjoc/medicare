@@ -487,7 +487,8 @@ const bulkUploadProducts = async (req, res) => {
                 'dosage',
                 'packing',
                 'category', 'composition',
-                'imageurls', 'publicids', 'createdat', 'updatedat'
+                'imageurls', 'imageurl', 'publicids', 'createdat', 'updatedat',
+                's.no', 'sno', 'no.'
             ]);
 
             // 4. Identify New Columns
@@ -540,12 +541,23 @@ const bulkUploadProducts = async (req, res) => {
             const row = rows[i];
             const rowNumber = i + headerRowIndex + 2;
 
+            // Normalize Row Keys: Create a lowercase map for easier access
+            // e.g. 'Description' -> 'description', 'Image URL' -> 'imageurl'
+            const normalizedRow = {};
+            Object.keys(row).forEach(key => {
+                normalizedRow[key.toLowerCase().trim().replace(/[^a-z0-9]+/g, '')] = row[key];
+                // Also keep original key for dynamic mapping if needed? 
+                // Actually, dynamic logic uses 'dbColumn' which is normalized.
+                // We'll keep 'row' for original precise access if needed, but rely on normalizedRow for standard fields.
+            });
+
             try {
                 // Normalize keys & Handle User-Specific Columns
-                const name = row.Name || row.name || row['product name'];
+                // Use normalizedRow to be robust against "Name", "NAME", "Product Name"
+                const name = normalizedRow.name || normalizedRow.productname;
 
-                // SKU Logic: User provided or Auto-generate
-                let sku = row.sku || row.SKU || row.Sku;
+                // SKU Logic
+                let sku = normalizedRow.sku;
                 if (!sku) {
                     // Auto-generate: SKU-TIMESTAMP-RANDOM
                     sku = `SKU-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
@@ -559,23 +571,22 @@ const bulkUploadProducts = async (req, res) => {
                     return match ? parseFloat(match[0]) : null;
                 };
 
-                let rawPrice = row.price || row.Price || row['MRP'];
-                let rawBuyingPrice = row['Buying Price'] || row['buying price'];
-                let rawSalePrice = row['sale price'] || row['Sale price'] || row['price_1'] || row['Price_1'] || row['Sale Price'] || row['selling price'];
+                let rawPrice = normalizedRow.price || normalizedRow.mrp;
+                let rawBuyingPrice = normalizedRow.buyingprice;
+                let rawSalePrice = normalizedRow.saleprice || normalizedRow.price_1 || normalizedRow.sellingprice;
 
                 let price = cleanPrice(rawPrice);
                 let buyingPrice = cleanPrice(rawBuyingPrice);
                 let salePrice = cleanPrice(rawSalePrice);
 
-                // Company -> companies (Array)
                 let companies = [];
-                if (row.Company || row.COMPANY || row.company) {
-                    companies.push(String(row.Company || row.COMPANY || row.company).trim());
+                if (normalizedRow.company) {
+                    companies.push(String(normalizedRow.company).trim());
                 }
 
-                // Salt -> salt (Array, split by '|')
+                // Salt -> salt
                 let saltArray = [];
-                const rawSalt = row.salt || row.Salt || row.SALT;
+                const rawSalt = normalizedRow.salt;
                 if (rawSalt) {
                     // "Amoxycillin 250mg | Clavulanic acid 125mg"
                     saltArray = String(rawSalt).split('|').map(s => s.trim());
@@ -583,26 +594,25 @@ const bulkUploadProducts = async (req, res) => {
 
                 // Description parts
                 let descriptionParts = [];
-                if (row.Composition) descriptionParts.push(`Composition: ${row.Composition}`);
-                // if (row.Dosage) descriptionParts.push(`Dosage: ${row.Dosage}`); // Removed
-                // if (row.Packing) descriptionParts.push(`Packing: ${row.Packing}`); // Removed
-                if (row.Description) descriptionParts.push(row.Description);
+                if (normalizedRow.composition) descriptionParts.push(`Composition: ${normalizedRow.composition}`);
+                // if (normalizedRow.dosage) descriptionParts.push(`Dosage: ${normalizedRow.dosage}`); // Removed
+                // if (normalizedRow.packing) descriptionParts.push(`Packing: ${normalizedRow.packing}`); // Removed
+                const desc = normalizedRow.description;
+                if (desc) descriptionParts.push(desc);
                 const finalDescription = descriptionParts.join(' | ');
 
                 // Dosage & Packing
-                const dosage = row.Dosage || row.dosage || null;
-                const packing = row.Packing || row.packing || null;
+                const dosage = normalizedRow.dosage || null;
+                const packing = normalizedRow.packing || null;
 
-                const stock = row.Stock || row.stock || 0;
+                const stock = normalizedRow.stock || 0;
 
                 // Category Logic:
-                // 1. Row 'Category' (Column J)
-                // 2. Section Header (inferred from previous loop)
-                // 3. Title inferred
+                // 1. Row 'Category'
                 let targetCategoryId = null;
 
                 // Check row category column
-                const rowCategoryName = row.Category || row.category || row.CATEGORY;
+                const rowCategoryName = normalizedRow.category;
                 if (rowCategoryName && typeof rowCategoryName === 'string') {
                     // Try to find category by name
                     const cleanName = rowCategoryName.trim();
@@ -635,10 +645,8 @@ const bulkUploadProducts = async (req, res) => {
                     return false;
                 };
 
-                // Is this a section header like "INJECTABLES"?
-                // If it has a Name but no Price, no Packing, no Salt... it's likely a header.
-                // BUT, wait, "Tablet" column might be filled? 
-                if (name && isEmpty(price) && isEmpty(row.Packing) && isEmpty(rawSalt)) {
+
+                if (name && isEmpty(price) && isEmpty(packing) && isEmpty(rawSalt)) {
                     // Treat as Section Header
                     const sectionName = name.trim();
                     let sectionCategory = await Category.findOne({ where: { name: sectionName } });
@@ -684,7 +692,9 @@ const bulkUploadProducts = async (req, res) => {
                     stock,
                     salt: saltArray, // Array
                     // CategoryId: targetCategoryId, // Deprecated
-                    imageUrls: ["https://res.cloudinary.com/dhvch5umt/image/upload/v1768724782/medical-equipments-500x500_ul7oua.webp"],
+                    imageUrls: (normalizedRow.imageurl)
+                        ? [normalizedRow.imageurl]
+                        : ["https://res.cloudinary.com/dhvch5umt/image/upload/v1768724782/medical-equipments-500x500_ul7oua.webp"],
                     publicIds: [],
                     dosage,
                     packing
