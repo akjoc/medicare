@@ -12,17 +12,19 @@ export interface Product {
     id: string;
     name: string;
     salt?: string[]; // Chemical composition - array of strings
-    company?: string;
+    companies?: string[]; // Changed from company string to array
     buyingPrice?: number;
     categoryIds: string[]; // Changed to array for multi-select
     price: number;
     salePrice?: number;
-    stock: number;
-    description: string;
-    imageUrls: string[]; // Max 5 images
-    sku: string;
+    stock?: number;
+    description?: string;
+    imageUrls?: string[]; // Max 5 images
+    sku?: string;
     status: "active" | "inactive" | "out_of_stock";
     createdAt: string;
+    dosage?: string;
+    packing?: string;
 }
 
 export const MOCK_CATEGORIES: Category[] = [];

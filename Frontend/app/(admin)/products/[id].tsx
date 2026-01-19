@@ -19,7 +19,13 @@ export default function EditProductScreen() {
             if (typeof id === 'string') {
                 try {
                     const data = await productService.getProductById(id);
-                    setProduct(data || null);
+                    // Transform API data to match Form interface
+                    const formattedData = {
+                        ...data,
+                        categoryIds: data.Categories?.map((c: any) => c.id) || data.categories?.map((c: any) => c.id) || [],
+                        companies: Array.isArray(data.companies) ? data.companies : (data.company ? [data.company] : []),
+                    };
+                    setProduct(formattedData || null);
                 } catch (error: any) {
                     console.error("Failed to fetch product", error);
                     const message = error.response?.data?.message || "Failed to fetch product";

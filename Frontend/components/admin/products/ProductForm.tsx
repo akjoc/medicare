@@ -38,10 +38,13 @@ export default function ProductForm({
         description: initialValues?.description || "",
         sku: initialValues?.sku || "",
         status: initialValues?.status || "active",
-        images: initialValues?.images || ["https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSv_RpR5QX0isgvEwZffZ2RnFl1PdJn-kr4Jg&s"],
+        images: initialValues?.imageUrls || [],
         salt: initialValues?.salt || [],
-        company: initialValues?.company || "",
+        companies: initialValues?.companies || [],
         buyingPrice: initialValues?.buyingPrice?.toString() || "",
+        dosage: initialValues?.dosage || "",
+        packing: initialValues?.packing || "",
+        companyInput: initialValues?.companies?.[0] || "", // Helper state for single input
     });
 
     const [errors, setErrors] = useState<Record<string, string>>({});
@@ -85,9 +88,8 @@ export default function ProductForm({
         if (!formData.name.trim()) newErrors.name = "Product name is required";
         if (formData.categoryIds.length === 0) newErrors.categoryIds = "At least one category is required";
         if (!formData.price || isNaN(Number(formData.price))) newErrors.price = "Valid price is required";
-        if (!formData.stock || isNaN(Number(formData.stock))) newErrors.stock = "Valid stock is required";
-        if (!formData.sku.trim()) newErrors.sku = "SKU is required";
-        if (formData.buyingPrice && isNaN(Number(formData.buyingPrice))) newErrors.buyingPrice = "Valid buying price is required";
+        // REMOVED: categoryIds, stock, sku validations as requested
+
 
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
@@ -99,13 +101,15 @@ export default function ProductForm({
                 ...formData,
                 price: Number(formData.price),
                 salePrice: formData.salePrice ? Number(formData.salePrice) : undefined,
-                stock: Number(formData.stock),
+                stock: formData.stock ? Number(formData.stock) : 0,
                 categoryIds: formData.categoryIds,
                 status: formData.status as any,
-                images: formData.images,
+                imageUrls: formData.images,
                 salt: formData.salt.length > 0 ? formData.salt : undefined,
-                company: formData.company || undefined,
+                companies: formData.companyInput ? [formData.companyInput] : [],
                 buyingPrice: formData.buyingPrice ? Number(formData.buyingPrice) : undefined,
+                dosage: formData.dosage || undefined,
+                packing: formData.packing || undefined,
             });
         }
     };
@@ -188,7 +192,7 @@ export default function ProductForm({
                 </View>
 
                 <View style={styles.inputContainer}>
-                    <Text style={styles.label}>Categories <Text style={styles.required}>*</Text> (Multi-select)</Text>
+                    <Text style={styles.label}>Categories (Multi-select)</Text>
                     {loadingCategories ? (
                         <ActivityIndicator size="small" color={colors.primary} />
                     ) : (
@@ -248,6 +252,29 @@ export default function ProductForm({
                         />
                     </View>
                 </View>
+
+                <View style={styles.row}>
+                    <View style={[styles.inputContainer, { flex: 1 }]}>
+                        <Text style={styles.label}>Dosage</Text>
+                        <TextInput
+                            style={styles.input}
+                            value={formData.dosage}
+                            onChangeText={(text) => setFormData(prev => ({ ...prev, dosage: text }))}
+                            placeholder="e.g. 500mg"
+                            placeholderTextColor={colors.textLight}
+                        />
+                    </View>
+                    <View style={[styles.inputContainer, { flex: 1 }]}>
+                        <Text style={styles.label}>Packing</Text>
+                        <TextInput
+                            style={styles.input}
+                            value={formData.packing}
+                            onChangeText={(text) => setFormData(prev => ({ ...prev, packing: text }))}
+                            placeholder="e.g. 10x10"
+                            placeholderTextColor={colors.textLight}
+                        />
+                    </View>
+                </View>
             </View>
 
             {/* Salt Section */}
@@ -294,8 +321,8 @@ export default function ProductForm({
                     <Text style={styles.label}>Company Name</Text>
                     <TextInput
                         style={styles.input}
-                        value={formData.company}
-                        onChangeText={(text) => setFormData(prev => ({ ...prev, company: text }))}
+                        value={formData.companyInput}
+                        onChangeText={(text) => setFormData(prev => ({ ...prev, companyInput: text }))}
                         placeholder="e.g., Healthcare Corp"
                         placeholderTextColor={colors.textLight}
                     />
@@ -322,7 +349,7 @@ export default function ProductForm({
 
                 <View style={styles.row}>
                     <View style={[styles.inputContainer, { flex: 1 }]}>
-                        <Text style={styles.label}>SKU <Text style={styles.required}>*</Text></Text>
+                        <Text style={styles.label}>SKU</Text>
                         <TextInput
                             style={[styles.input, errors.sku && styles.inputError]}
                             value={formData.sku}
@@ -333,7 +360,7 @@ export default function ProductForm({
                         {errors.sku && <Text style={styles.errorText}>{errors.sku}</Text>}
                     </View>
                     <View style={[styles.inputContainer, { flex: 1 }]}>
-                        <Text style={styles.label}>Stock <Text style={styles.required}>*</Text></Text>
+                        <Text style={styles.label}>Stock</Text>
                         <TextInput
                             style={[styles.input, errors.stock && styles.inputError]}
                             value={formData.stock}

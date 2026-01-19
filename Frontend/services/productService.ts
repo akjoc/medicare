@@ -5,16 +5,19 @@ import { Platform } from "react-native";
 export interface ProductPayload {
     name: string;
     salt?: string[];
-    company?: string;
+    companies?: string[];
     buyingPrice?: number;
     categoryIds: string[]; // Changed to array for multi-select
     price: number;
     salePrice?: number;
-    stock: number;
-    description: string;
-    images: string[];
-    sku: string;
+    stock?: number;
+    description?: string;
+    imageUrls?: string[];
+    sku?: string;
     status: "active" | "inactive" | "out_of_stock";
+    dosage?: string;
+    packing?: string;
+
 }
 
 export interface ProductResponse {
