@@ -24,10 +24,10 @@ export default function ProductItem({ product, onPress, onDelete }: ProductItemP
 
             <View style={styles.info}>
                 <Text style={styles.name} numberOfLines={2}>{product.name}</Text>
-                <Text style={styles.sku}>SKU: {product.sku}</Text>
+                <Text style={styles.sku}>Composition: {product.salt?.join(", ")}</Text>
                 <View style={styles.priceRow}>
                     <Text style={styles.price}>₹{product.price}</Text>
-                    {product.stock <= 20 && (
+                    {Number(product.stock) <= 20 && (
                         <Text style={styles.lowStock}>Low Stock: {product.stock}</Text>
                     )}
                 </View>

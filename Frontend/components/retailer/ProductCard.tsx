@@ -66,7 +66,7 @@ export default function ProductCard({ product, onPress }: ProductCardProps) {
                 </Text>
                 {product.salt && product.salt.length > 0 && (
                     <Text style={styles.salt} numberOfLines={1}>
-                        {product.salt[0]}
+                        {product.salt.join(", ")}
                     </Text>
                 )}
 

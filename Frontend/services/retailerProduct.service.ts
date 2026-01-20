@@ -40,4 +40,17 @@ export const retailerProductService = {
             throw error;
         }
     },
+
+    getProductsByCategory: async (categoryId: string, page = 1, limit = 10): Promise<ProductResponse> => {
+        try {
+            // Try CategoryId (capitalized) as backend might expect this format
+            const response = await privateClient.get(ENDPOINTS.GET_PRODUCTS, {
+                params: { CategoryId: categoryId, page, limit }
+            });
+            console.log(`Fetching products for CategoryId: ${categoryId}, page: ${page}`);
+            return response.data;
+        } catch (error) {
+            throw error;
+        }
+    },
 };

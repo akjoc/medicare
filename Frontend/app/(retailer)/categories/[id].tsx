@@ -16,6 +16,9 @@ export default function CategoryProductsScreen() {
     const [category, setCategory] = useState<Category | null>(null);
     const [products, setProducts] = useState<APIProduct[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
 
     useEffect(() => {
         if (id) {
@@ -23,25 +26,42 @@ export default function CategoryProductsScreen() {
         }
     }, [id]);
 
-    const fetchData = async (categoryId: string) => {
+    const fetchData = async (categoryId: string, pageNum: number = 1) => {
         try {
-            setIsLoading(true);
-            const [categoryData, productsData] = await Promise.all([
+            setIsLoading(pageNum === 1);
+            setIsLoadingMore(pageNum > 1);
+
+            const [categoryData, productsResponse] = await Promise.all([
                 CategoryService.getById(categoryId),
-                retailerProductService.getProducts()
+                retailerProductService.getProductsByCategory(categoryId, pageNum, 10)
             ]);
+
             setCategory(categoryData);
 
-            // Filter products client-side for now
-            const filteredProducts = productsData.filter((p: APIProduct) => {
-                return p.CategoryId === Number(categoryId);
+            // Filter products to ensure only products from this category are shown
+            // This is a fallback in case the backend doesn't filter properly
+            const filteredProducts = productsResponse.products.filter(p => {
+                // @ts-ignore
+                const productCategoryId = p.categoryId || p.CategoryId;
+                return productCategoryId === Number(categoryId) || productCategoryId === categoryId;
             });
-            setProducts(filteredProducts);
+
+            console.log(`Category ${categoryId}: Received ${productsResponse.products.length} products, filtered to ${filteredProducts.length}`);
+
+            if (pageNum === 1) {
+                setProducts(filteredProducts);
+            } else {
+                setProducts(prev => [...prev, ...filteredProducts]);
+            }
+
+            setPage(pageNum);
+            setTotalPages(productsResponse.totalPages);
 
         } catch (error) {
             console.error("Error fetching category data:", error);
         } finally {
             setIsLoading(false);
+            setIsLoadingMore(false);
         }
     };
 
@@ -83,6 +103,19 @@ export default function CategoryProductsScreen() {
                 numColumns={2}
                 contentContainerStyle={styles.listContent}
                 columnWrapperStyle={styles.columnWrapper}
+                onEndReached={() => {
+                    if (!isLoadingMore && page < totalPages) {
+                        fetchData(id as string, page + 1);
+                    }
+                }}
+                onEndReachedThreshold={0.5}
+                ListFooterComponent={
+                    isLoadingMore ? (
+                        <View style={styles.footerLoader}>
+                            <ActivityIndicator size="small" color={colors.primary} />
+                        </View>
+                    ) : null
+                }
                 ListEmptyComponent={
                     <View style={styles.emptyContainer}>
                         <Text style={styles.emptyText}>No products in this category</Text>
@@ -137,5 +170,9 @@ const styles = StyleSheet.create({
     emptyText: {
         color: colors.textLight,
         fontSize: 16,
+    },
+    footerLoader: {
+        paddingVertical: 20,
+        alignItems: "center" as const,
     },
 });

@@ -7,7 +7,7 @@ import { APICategory, APIProduct } from "@/types/api";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Dimensions, FlatList, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Dimensions, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const { width } = Dimensions.get("window");
@@ -43,13 +43,33 @@ export default function HomeScreen() {
                 retailerCategoryService.getAllCategories(),
             ]);
 
-            setProducts(productsResponse.products);
-            setTotalPages(productsResponse.totalPages);
-            setPage(1);
+            setPage(1); // Reset page on refresh
+
+            // Safely handle products response
+            let productsData: APIProduct[] = [];
+            if (productsResponse && productsResponse.products && Array.isArray(productsResponse.products)) {
+                productsData = productsResponse.products;
+                setTotalPages(productsResponse.totalPages || 1);
+            } else if (Array.isArray(productsResponse)) {
+                // Fallback if API returns direct array
+                console.warn("API returned direct array for products");
+                productsData = productsResponse as unknown as APIProduct[];
+            } else {
+                console.error("Invalid products response:", productsResponse);
+            }
+            setProducts(productsData);
+
+            // Safely handle categories
+            if (!categoriesData || !Array.isArray(categoriesData)) {
+                console.error("Invalid categories data:", categoriesData);
+                setCategories([]);
+                return;
+            }
 
             // Flatten categories to show sections for subcategories too
             const flattened: APICategory[] = [];
             const flatten = (cats: APICategory[]) => {
+                if (!cats) return;
                 cats.forEach(c => {
                     flattened.push(c);
                     if (c.subCategories && c.subCategories.length > 0) {
@@ -61,6 +81,9 @@ export default function HomeScreen() {
             setCategories(flattened);
         } catch (error) {
             console.error("Error fetching data:", error);
+            // Ensure no undefined state
+            setProducts([]);
+            setCategories([]);
         } finally {
             setIsLoading(false);
         }
@@ -103,7 +126,7 @@ export default function HomeScreen() {
 
         try {
             const results = await retailerProductService.searchProducts(text);
-            setSearchResults(results.products.slice(0, 5));
+            setSearchResults(results.products.slice(0, 8));
             setShowResults(true);
         } catch (error) {
             console.error("Error searching products:", error);
@@ -158,7 +181,7 @@ export default function HomeScreen() {
                                 <Ionicons name="medical-outline" size={16} color={colors.textLight} style={{ marginRight: 10 }} />
                                 <View style={{ flex: 1 }}>
                                     <Text style={styles.resultName}>{item.name}</Text>
-                                    {item.salt && item.salt.length > 0 && <Text style={styles.resultSalt} numberOfLines={1}>{item.salt[0]}</Text>}
+                                    {item.salt && item.salt.length > 0 && <Text style={styles.resultSalt} numberOfLines={1}>{item.salt.join(", ")}</Text>}
                                 </View>
                                 <Ionicons name="chevron-forward" size={16} color={colors.textLight} />
                             </TouchableOpacity>
@@ -204,35 +227,6 @@ export default function HomeScreen() {
         </View>
     );
 
-    const renderSection = (categoryName: string, categoryId: number, data: APIProduct[]) => {
-        if (!data || data.length === 0) return null;
-
-        return (
-            <View style={styles.sectionContainer} key={categoryName}>
-                <View style={styles.sectionHeader}>
-                    <Text style={styles.sectionTitle}>{categoryName}</Text>
-                    <TouchableOpacity onPress={() => router.push(`/(retailer)/categories/${categoryId}`)}>
-                        <Text style={styles.seeAll}>See All</Text>
-                    </TouchableOpacity>
-                </View>
-                <FlatList
-                    data={data}
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    renderItem={({ item }) => (
-                        <View style={{ width: 160, marginRight: 12 }}>
-                            <ProductCard
-                                product={item}
-                                onPress={() => router.push(`/(retailer)/product/${item.id}`)}
-                            />
-                        </View>
-                    )}
-                    contentContainerStyle={styles.horizontalList}
-                />
-            </View>
-        );
-    };
-
     if (isLoading) {
         return (
             <View style={[styles.container, styles.loadingContainer]}>
@@ -249,7 +243,7 @@ export default function HomeScreen() {
             <ScrollView
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled" // Important for search clicks
+                keyboardShouldPersistTaps="handled"
                 onScroll={({ nativeEvent }) => {
                     if (isCloseToBottom(nativeEvent)) {
                         loadMoreProducts();
@@ -262,13 +256,46 @@ export default function HomeScreen() {
 
                 {/* Dynamic Categories */}
                 {categories.map(category => {
-                    const categoryProducts = products.filter(p => {
-                        return p.CategoryId === category.id;
+                    const categoryProducts = (products || []).filter(p => {
+                        // Check direct ID
+                        // @ts-ignore
+                        if ((p.categoryId || p.CategoryId) === category.id) return true;
+
+                        // Check Categories array (if backend returns populated categories)
+                        // @ts-ignore
+                        if (p.Categories && Array.isArray(p.Categories)) {
+                            // @ts-ignore
+                            return p.Categories.some(c => c.id === category.id);
+                        }
+
+                        return false;
                     });
 
                     if (categoryProducts.length === 0) return null;
 
-                    return renderSection(category.name, category.id, categoryProducts);
+                    // Show only first 6 products on home screen
+                    const displayProducts = categoryProducts.slice(0, 6);
+
+                    return (
+                        <View style={styles.sectionContainer} key={category.id}>
+                            <View style={styles.sectionHeader}>
+                                <Text style={styles.sectionTitle}>{category.name}</Text>
+                                <TouchableOpacity onPress={() => router.push(`/(retailer)/categories/${category.id}`)}>
+                                    <Text style={styles.seeAll}>See All</Text>
+                                </TouchableOpacity>
+                            </View>
+                            <View style={styles.gridContainer}>
+                                {displayProducts.map((product) => (
+                                    <View key={product.id} style={styles.gridItem}>
+                                        <ProductCard
+                                            product={product}
+                                            onPress={() => router.push(`/(retailer)/product/${product.id}`)}
+                                        />
+                                    </View>
+                                ))}
+                            </View>
+                        </View>
+                    );
                 })}
 
             </ScrollView>
@@ -440,7 +467,14 @@ const styles = StyleSheet.create({
         color: colors.primary,
         fontWeight: "600",
     },
-    horizontalList: {
-        paddingHorizontal: 20,
+    gridContainer: {
+        flexDirection: "row",
+        flexWrap: "wrap",
+        paddingHorizontal: 14,
+    },
+    gridItem: {
+        width: "50%",
+        marginBottom: 12,
+        paddingHorizontal: 6,
     },
 });
