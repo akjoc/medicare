@@ -1,3 +1,4 @@
+import { SearchableDropdown } from "@/components/admin/payments/SearchableDropdown";
 import { Retailer } from "@/components/admin/retailers/RetailerForm";
 import { Coupon } from "@/data/coupons";
 import { Category, CategoryService } from "@/services/categoryService";
@@ -111,7 +112,7 @@ const CouponModal = ({ visible, coupon, categories, retailers, onClose, onSave }
                         </TouchableOpacity>
                     </View>
 
-                    <View style={modalStyles.content}>
+                    <ScrollView style={modalStyles.content} showsVerticalScrollIndicator={false}>
                         <View style={modalStyles.inputContainer}>
                             <Text style={modalStyles.label}>Code <Text style={{ color: 'red' }}>*</Text></Text>
                             <TextInput
@@ -187,71 +188,32 @@ const CouponModal = ({ visible, coupon, categories, retailers, onClose, onSave }
                             />
                         </View>
 
-                        <View style={modalStyles.inputContainer}>
-                            <Text style={modalStyles.label}>Category (Optional)</Text>
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={modalStyles.categoryScroll}>
-                                <TouchableOpacity
-                                    style={[
-                                        modalStyles.categoryChip,
-                                        !categoryId && modalStyles.categoryChipSelected
-                                    ]}
-                                    onPress={() => setCategoryId("")}
-                                >
-                                    <Text style={[
-                                        modalStyles.categoryChipText,
-                                        !categoryId && modalStyles.categoryChipTextSelected
-                                    ]}>All</Text>
-                                </TouchableOpacity>
-                                {categories.map((cat) => (
-                                    <TouchableOpacity
-                                        key={cat.id}
-                                        style={[
-                                            modalStyles.categoryChip,
-                                            categoryId === cat.id && modalStyles.categoryChipSelected
-                                        ]}
-                                        onPress={() => setCategoryId(cat.id)}
-                                    >
-                                        <Text style={[
-                                            modalStyles.categoryChipText,
-                                            categoryId === cat.id && modalStyles.categoryChipTextSelected
-                                        ]}>{cat.name}</Text>
-                                    </TouchableOpacity>
-                                ))}
-                            </ScrollView>
-                        </View>
+                        <SearchableDropdown
+                            data={categories}
+                            value={categoryId}
+                            onSelect={setCategoryId}
+                            placeholder="Category"
+                            label="Category (Optional)"
+                            getItemId={(cat) => cat.id}
+                            getItemLabel={(cat) => cat.name}
+                            allowAll={true}
+                        />
 
-                        <View style={modalStyles.inputContainer}>
-                            <Text style={modalStyles.label}>Retailer (Optional)</Text>
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={modalStyles.categoryScroll}>
-                                <TouchableOpacity
-                                    style={[
-                                        modalStyles.categoryChip,
-                                        !retailerId && modalStyles.categoryChipSelected
-                                    ]}
-                                    onPress={() => setRetailerId("")}
-                                >
-                                    <Text style={[
-                                        modalStyles.categoryChipText,
-                                        !retailerId && modalStyles.categoryChipTextSelected
-                                    ]}>All</Text>
-                                </TouchableOpacity>
-                                {retailers.map((ret) => (
-                                    <TouchableOpacity
-                                        key={ret.id}
-                                        style={[
-                                            modalStyles.categoryChip,
-                                            retailerId === ret.id && modalStyles.categoryChipSelected
-                                        ]}
-                                        onPress={() => setRetailerId(ret.id)}
-                                    >
-                                        <Text style={[
-                                            modalStyles.categoryChipText,
-                                            retailerId === ret.id && modalStyles.categoryChipTextSelected
-                                        ]}>{ret.shopName}</Text>
-                                    </TouchableOpacity>
-                                ))}
-                            </ScrollView>
-                        </View>
+                        <SearchableDropdown
+                            data={retailers}
+                            value={retailerId}
+                            onSelect={setRetailerId}
+                            placeholder="Retailer"
+                            label="Retailer (Optional)"
+                            getItemId={(ret) => ret.id}
+                            getItemLabel={(ret) => ret.shopName}
+                            allowAll={true}
+                            onSearch={async (query) => {
+                                const response = await retailerService.searchRetailers(query, 1, 50);
+                                return response.retailers;
+                            }}
+                            debounceMs={500}
+                        />
 
                         <TouchableOpacity
                             style={modalStyles.saveButton}
@@ -264,7 +226,7 @@ const CouponModal = ({ visible, coupon, categories, retailers, onClose, onSave }
                                 <Text style={modalStyles.saveButtonText}>{coupon ? "Update" : "Create"}</Text>
                             )}
                         </TouchableOpacity>
-                    </View>
+                    </ScrollView>
                 </View>
             </View>
         </Modal>
@@ -291,9 +253,12 @@ export default function CouponManager() {
                 CategoryService.getAll(),
                 retailerService.getRetailers()
             ]);
+            console.log("Coupons Data:", couponsData);
+            console.log("Categories Data:", categoriesData);
+            console.log("Retailers Data:", retailersData);
             setCoupons(couponsData);
             setCategories(flattenCategories(categoriesData));
-            setRetailers(retailersData);
+            setRetailers(retailersData.retailers);
         } catch (error) {
             Alert.alert("Error", "Failed to load data");
         } finally {
@@ -567,29 +532,5 @@ const modalStyles = StyleSheet.create({
         color: colors.white,
         fontWeight: "700",
         fontSize: 16,
-    },
-    categoryScroll: {
-        flexDirection: "row",
-    },
-    categoryChip: {
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        borderRadius: 20,
-        backgroundColor: colors.background,
-        borderWidth: 1,
-        borderColor: colors.border,
-        marginRight: 8,
-    },
-    categoryChipSelected: {
-        backgroundColor: colors.primary,
-        borderColor: colors.primary,
-    },
-    categoryChipText: {
-        fontSize: 13,
-        color: colors.textDark,
-    },
-    categoryChipTextSelected: {
-        color: colors.white,
-        fontWeight: "600",
     },
 });
