@@ -16,4 +16,7 @@ User.hasOne(Retailer);
 // Retailer Permissions (RetailerCategory) - Assuming RetailerCategory model exists or defined inline elsewhere
 // For now, focusing on the new Product-Category link.
 
-module.exports = { Product, Category, ProductCategory };
+// Coupon Associations (if any needed in future, e.g., CouponRedemption log)
+const Coupon = require('./coupon');
+
+module.exports = { Product, Category, ProductCategory, Coupon };

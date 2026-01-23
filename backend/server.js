@@ -6,6 +6,7 @@ const userRoutes = require('./routes/userRoutes');
 const retailerRoutes = require('./routes/retailerRoutes');
 const productRoutes = require('./routes/productRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
+const couponRoutes = require('./routes/couponRoutes');
 
 // Initialize Associations (Must be before routes use models if possible, or definitely before server starts)
 require('./models/associations');
@@ -22,6 +23,11 @@ app.use('/api/users', userRoutes);
 app.use('/api/retailers', retailerRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/categories', categoryRoutes);
+app.use('/api/coupons', couponRoutes);
+const paymentConfigRoutes = require('./routes/paymentConfigRoutes');
+app.use('/api/payment-config', paymentConfigRoutes);
+const appSettingRoutes = require('./routes/appSettingRoutes');
+app.use('/api/app-settings', appSettingRoutes);
 
 // Database Connection & Server Start
 const startServer = async () => {
@@ -37,6 +43,7 @@ const startServer = async () => {
     app.listen(PORT, () => {
         console.log(`Server running on port ${PORT}`);
     });
+
 };
 
 startServer();
