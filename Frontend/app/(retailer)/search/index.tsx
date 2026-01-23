@@ -3,35 +3,53 @@ import { retailerProductService } from "@/services/retailerProduct.service";
 import { colors } from "@/styles/colors";
 import { APIProduct } from "@/types/api";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useEffect, useState } from "react";
 import { ActivityIndicator, FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function SearchScreen() {
     const router = useRouter();
+    const { q } = useLocalSearchParams<{ q?: string }>();
     const [query, setQuery] = useState("");
     const [results, setResults] = useState<APIProduct[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [hasSearched, setHasSearched] = useState(false);
 
-    const handleSearch = async (text: string) => {
+    useEffect(() => {
+        if (q) {
+            setQuery(q);
+            performSearch(q);
+        }
+    }, [q]);
+
+    useEffect(() => {
+        if (query.trim() === "" || query === q) return;
+
+        const timer = setTimeout(() => {
+            performSearch(query);
+        }, 500);
+
+        return () => clearTimeout(timer);
+    }, [query]);
+
+    const handleSearch = (text: string) => {
         setQuery(text);
         if (text.trim() === "") {
             setResults([]);
             setHasSearched(false);
-            return;
         }
+    };
 
+    const performSearch = async (text: string) => {
         setHasSearched(true);
         setIsLoading(true);
 
         try {
             const data = await retailerProductService.searchProducts(text);
-            setResults(data);
+            setResults(data.products);
         } catch (error) {
             console.error("Search error:", error);
-            // Optionally handle error state
         } finally {
             setIsLoading(false);
         }

@@ -46,3 +46,12 @@ export async function getUser(): Promise<User | null> {
   const json = await AsyncStorage.getItem(USER_INFO_KEY);
   return json ? JSON.parse(json) : null;
 }
+
+export async function changePassword(data: any): Promise<any> {
+  try {
+    const response = await privateClient.post(ENDPOINTS.CHANGE_PASSWORD, data);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+}

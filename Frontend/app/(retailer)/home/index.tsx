@@ -29,6 +29,7 @@ export default function HomeScreen() {
     // Search State
     const [searchQuery, setSearchQuery] = useState("");
     const [searchResults, setSearchResults] = useState<APIProduct[]>([]);
+    const [totalSearchResults, setTotalSearchResults] = useState(0);
     const [showResults, setShowResults] = useState(false);
 
     useEffect(() => {
@@ -116,22 +117,30 @@ export default function HomeScreen() {
 
 
     // Filter Logic
-    const handleSearch = async (text: string) => {
+    const handleSearch = (text: string) => {
         setSearchQuery(text);
         if (text.trim().length === 0) {
             setSearchResults([]);
             setShowResults(false);
-            return;
-        }
-
-        try {
-            const results = await retailerProductService.searchProducts(text);
-            setSearchResults(results.products.slice(0, 8));
-            setShowResults(true);
-        } catch (error) {
-            console.error("Error searching products:", error);
         }
     };
+
+    useEffect(() => {
+        if (searchQuery.trim().length === 0) return;
+
+        const timer = setTimeout(async () => {
+            try {
+                const data = await retailerProductService.searchProducts(searchQuery);
+                setTotalSearchResults(data.totalProducts || data.products.length);
+                setSearchResults(data.products.slice(0, 5));
+                setShowResults(true);
+            } catch (error) {
+                console.error("Error searching products:", error);
+            }
+        }, 500);
+
+        return () => clearTimeout(timer);
+    }, [searchQuery]);
 
     const renderHeader = () => (
         <View style={[styles.headerContainer, { paddingTop: insets.top }]}>
@@ -174,7 +183,8 @@ export default function HomeScreen() {
                                 key={item.id}
                                 style={styles.searchResultItem}
                                 onPress={() => {
-                                    handleSearch(""); // Clear search
+                                    setSearchQuery(""); // Clear search
+                                    setShowResults(false);
                                     router.push(`/(retailer)/product/${item.id}`);
                                 }}
                             >
@@ -186,6 +196,21 @@ export default function HomeScreen() {
                                 <Ionicons name="chevron-forward" size={16} color={colors.textLight} />
                             </TouchableOpacity>
                         ))}
+                        {totalSearchResults > 5 && (
+                            <TouchableOpacity
+                                style={styles.seeMoreButton}
+                                onPress={() => {
+                                    setShowResults(false);
+                                    router.push({
+                                        pathname: "/(retailer)/search",
+                                        params: { q: searchQuery }
+                                    });
+                                }}
+                            >
+                                <Text style={styles.seeMoreText}>See More Results ({totalSearchResults - 5}+)</Text>
+                                <Ionicons name="arrow-forward" size={16} color={colors.primary} />
+                            </TouchableOpacity>
+                        )}
                     </View>
                 )}
             </View>
@@ -372,8 +397,25 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.2,
         shadowRadius: 8,
-        paddingVertical: 8,
-        maxHeight: 300,
+        paddingBottom: 8, // Added padding to prevent cropping
+        maxHeight: 400, // Slightly increased to accommodate See More button
+    },
+    seeMoreButton: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        paddingVertical: 12,
+        borderTopWidth: 1,
+        borderTopColor: "#F3F4F6",
+        backgroundColor: colors.white,
+        borderBottomLeftRadius: 12,
+        borderBottomRightRadius: 12,
+    },
+    seeMoreText: {
+        fontSize: 14,
+        fontWeight: "700",
+        color: colors.primary,
+        marginRight: 6,
     },
     searchResultItem: {
         flexDirection: "row",

@@ -118,6 +118,22 @@ export default function AccountScreen() {
 
                     <TouchableOpacity
                         style={styles.menuItem}
+                        onPress={() => router.push("/(admin)/account/security")}
+                    >
+                        <View style={styles.menuIconContainer}>
+                            <Ionicons name="lock-closed-outline" size={22} color={colors.textDark} />
+                        </View>
+                        <View style={styles.menuContent}>
+                            <Text style={styles.menuTitle}>Security</Text>
+                            <Text style={styles.menuSubtitle}>Change your account password</Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={20} color={colors.textLight} />
+                    </TouchableOpacity>
+
+                    <View style={styles.divider} />
+
+                    <TouchableOpacity
+                        style={styles.menuItem}
                         onPress={() => router.push("/(admin)/account/app-settings")}
                     >
                         <View style={styles.menuIconContainer}>

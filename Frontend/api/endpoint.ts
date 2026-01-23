@@ -2,6 +2,7 @@ export const ENDPOINTS = {
     // Auth
     LOGIN: "/users/login",
     LOGOUT: "/users/logout",
+    CHANGE_PASSWORD: "/users/change-password",
     // Retailer
     CREATE_RETAILER: "/retailers",
     GET_RETAILERS: "/retailers",
