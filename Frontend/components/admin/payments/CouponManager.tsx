@@ -32,25 +32,25 @@ interface CouponModalProps {
 
 const CouponModal = ({ visible, coupon, categories, retailers, onClose, onSave }: CouponModalProps) => {
     const [code, setCode] = useState("");
-    const [discountType, setDiscountType] = useState<"FLAT" | "PERCENTAGE">("FLAT");
+    const [type, setType] = useState<"flat" | "percent">("flat");
     const [value, setValue] = useState("");
     const [usageLimit, setUsageLimit] = useState("");
     const [description, setDescription] = useState("");
-    const [categoryId, setCategoryId] = useState<string>("");
-    const [retailerId, setRetailerId] = useState<string>("");
+    const [shortDescription, setShortDescription] = useState("");
+    const [categoryIds, setCategoryIds] = useState<string[]>([]);
+    const [retailerIds, setRetailerIds] = useState<string[]>([]);
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
         if (coupon) {
             setCode(coupon.code);
-            setDiscountType(coupon.discountType);
+            setType(coupon.type);
             setValue(coupon.value.toString());
-            setUsageLimit(coupon.usageLimit.toString());
-            setValue(coupon.value.toString());
-            setUsageLimit(coupon.usageLimit.toString());
+            setUsageLimit(coupon.usageLimit?.toString() || "");
             setDescription(coupon.description || "");
-            setCategoryId(coupon.categoryId || "");
-            setRetailerId(coupon.retailerId || "");
+            setShortDescription(coupon.shortDescription || "");
+            setCategoryIds(coupon.categoryIds || (coupon.categoryId ? [coupon.categoryId] : []));
+            setRetailerIds(coupon.retailerIds || (coupon.retailerId ? [coupon.retailerId] : []));
         } else {
             resetForm();
         }
@@ -58,17 +58,18 @@ const CouponModal = ({ visible, coupon, categories, retailers, onClose, onSave }
 
     const resetForm = () => {
         setCode("");
-        setDiscountType("FLAT");
+        setType("flat");
         setValue("");
         setUsageLimit("");
         setDescription("");
-        setCategoryId("");
-        setRetailerId("");
+        setShortDescription("");
+        setCategoryIds([]);
+        setRetailerIds([]);
     };
 
     const handleSave = async () => {
-        if (!code || !value || !usageLimit) {
-            Alert.alert("Error", "Please fill all required fields");
+        if (!code || !type || !value) {
+            Alert.alert("Error", "Coupon Name, Type and Value are mandatory");
             return;
         }
 
@@ -76,19 +77,18 @@ const CouponModal = ({ visible, coupon, categories, retailers, onClose, onSave }
         try {
             const couponData = {
                 code,
-                discountType,
+                type,
                 value: Number(value),
-                usageLimit: Number(usageLimit),
-                expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // Default 30 days
+                usageLimit: usageLimit ? Number(usageLimit) : undefined,
                 description,
-                categoryId: categoryId || undefined,
-                retailerId: retailerId || undefined,
-                isActive: true,
-                usageCount: 0 // Will be ignored for update
+                shortDescription,
+                categoryIds: categoryIds.length > 0 ? categoryIds : undefined,
+                retailerIds: retailerIds.length > 0 ? retailerIds : undefined,
+                isActive: coupon ? coupon.isActive : true,
             };
 
             if (coupon) {
-                await CouponService.updateCoupon(coupon.id, couponData);
+                await CouponService.updateCoupon(coupon._id || coupon.id, couponData);
             } else {
                 await CouponService.createCoupon(couponData);
             }
@@ -131,25 +131,25 @@ const CouponModal = ({ visible, coupon, categories, retailers, onClose, onSave }
                                     <TouchableOpacity
                                         style={[
                                             modalStyles.typeBtn,
-                                            discountType === "FLAT" && modalStyles.typeBtnSelected
+                                            type === "flat" && modalStyles.typeBtnSelected
                                         ]}
-                                        onPress={() => setDiscountType("FLAT")}
+                                        onPress={() => setType("flat")}
                                     >
                                         <Text style={[
                                             modalStyles.typeBtnText,
-                                            discountType === "FLAT" && modalStyles.typeBtnTextSelected
+                                            type === "flat" && modalStyles.typeBtnTextSelected
                                         ]}>Flat (₹)</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity
                                         style={[
                                             modalStyles.typeBtn,
-                                            discountType === "PERCENTAGE" && modalStyles.typeBtnSelected
+                                            type === "percent" && modalStyles.typeBtnSelected
                                         ]}
-                                        onPress={() => setDiscountType("PERCENTAGE")}
+                                        onPress={() => setType("percent")}
                                     >
                                         <Text style={[
                                             modalStyles.typeBtnText,
-                                            discountType === "PERCENTAGE" && modalStyles.typeBtnTextSelected
+                                            type === "percent" && modalStyles.typeBtnTextSelected
                                         ]}>Percent (%)</Text>
                                     </TouchableOpacity>
                                 </View>
@@ -168,13 +168,23 @@ const CouponModal = ({ visible, coupon, categories, retailers, onClose, onSave }
                         </View>
 
                         <View style={modalStyles.inputContainer}>
-                            <Text style={modalStyles.label}>Usage Limit <Text style={{ color: 'red' }}>*</Text></Text>
+                            <Text style={modalStyles.label}>Usage Limit</Text>
                             <TextInput
                                 style={modalStyles.input}
                                 value={usageLimit}
                                 onChangeText={setUsageLimit}
                                 keyboardType="numeric"
                                 placeholder="e.g. 100"
+                            />
+                        </View>
+
+                        <View style={modalStyles.inputContainer}>
+                            <Text style={modalStyles.label}>Short Description</Text>
+                            <TextInput
+                                style={modalStyles.input}
+                                value={shortDescription}
+                                onChangeText={setShortDescription}
+                                placeholder="e.g. 50% off"
                             />
                         </View>
 
@@ -190,8 +200,8 @@ const CouponModal = ({ visible, coupon, categories, retailers, onClose, onSave }
 
                         <SearchableDropdown
                             data={categories}
-                            value={categoryId}
-                            onSelect={setCategoryId}
+                            value={categoryIds?.[0] || ""}
+                            onSelect={(id) => setCategoryIds(id ? [id] : [])}
                             placeholder="Category"
                             label="Category (Optional)"
                             getItemId={(cat) => cat.id}
@@ -201,8 +211,8 @@ const CouponModal = ({ visible, coupon, categories, retailers, onClose, onSave }
 
                         <SearchableDropdown
                             data={retailers}
-                            value={retailerId}
-                            onSelect={setRetailerId}
+                            value={retailerIds?.[0] || ""}
+                            onSelect={(id) => setRetailerIds(id ? [id] : [])}
                             placeholder="Retailer"
                             label="Retailer (Optional)"
                             getItemId={(ret) => ret.id}
@@ -235,9 +245,13 @@ const CouponModal = ({ visible, coupon, categories, retailers, onClose, onSave }
 
 export default function CouponManager() {
     const [coupons, setCoupons] = useState<Coupon[]>([]);
+    const [totalCoupons, setTotalCoupons] = useState(0);
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
     const [categories, setCategories] = useState<Category[]>([]);
     const [retailers, setRetailers] = useState<Retailer[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
     const [modalVisible, setModalVisible] = useState(false);
     const [selectedCoupon, setSelectedCoupon] = useState<Coupon | null>(null);
 
@@ -245,24 +259,43 @@ export default function CouponManager() {
         loadData();
     }, []);
 
-    const loadData = async () => {
-        setLoading(true);
+    const loadData = async (isLoadMore = false) => {
+        if (!isLoadMore) {
+            setLoading(true);
+            setPage(1);
+        } else {
+            setLoadingMore(true);
+        }
+
         try {
-            const [couponsData, categoriesData, retailersData] = await Promise.all([
-                CouponService.getAllCoupons(),
+            const nextPage = isLoadMore ? page + 1 : 1;
+            const [couponsRes, categoriesData, retailersData] = await Promise.all([
+                CouponService.getAllCoupons(nextPage),
                 CategoryService.getAll(),
                 retailerService.getRetailers()
             ]);
-            console.log("Coupons Data:", couponsData);
-            console.log("Categories Data:", categoriesData);
-            console.log("Retailers Data:", retailersData);
-            setCoupons(couponsData);
+
+            if (isLoadMore) {
+                setCoupons(prev => {
+                    const existingIds = new Set(prev.map(c => c._id || c.id));
+                    const newCoupons = couponsRes.coupons.filter(c => !existingIds.has(c._id || c.id));
+                    return [...prev, ...newCoupons];
+                });
+                setPage(nextPage);
+            } else {
+                setCoupons(couponsRes.coupons);
+                setPage(1);
+            }
+
+            setTotalCoupons(couponsRes.totalCoupons);
+            setTotalPages(couponsRes.totalPages);
             setCategories(flattenCategories(categoriesData));
             setRetailers(retailersData.retailers);
         } catch (error) {
             Alert.alert("Error", "Failed to load data");
         } finally {
             setLoading(false);
+            setLoadingMore(false);
         }
     };
 
@@ -288,12 +321,43 @@ export default function CouponManager() {
     const handleToggleStatus = async (id: string, currentStatus: boolean) => {
         try {
             // Optimistic update
-            setCoupons(prev => prev.map(c => c.id === id ? { ...c, isActive: !currentStatus } : c));
-            await CouponService.updateCoupon(id, { isActive: !currentStatus });
+            setCoupons(prev => prev.map(c => (c._id === id || c.id === id) ? { ...c, isActive: !currentStatus } : c));
+            await CouponService.toggleCouponStatus(id);
         } catch (error) {
             Alert.alert("Error", "Failed to update status");
-            loadData(); // Revert
+            loadData(false); // Revert
         }
+    };
+
+    const handleLoadMore = () => {
+        if (!loadingMore && !loading && page < totalPages) {
+            loadData(true);
+        }
+    };
+
+    const handleDelete = async (id: string) => {
+        Alert.alert(
+            "Delete Coupon",
+            "Are you sure you want to delete this coupon?",
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Delete",
+                    style: "destructive",
+                    onPress: async () => {
+                        try {
+                            setLoading(true);
+                            await CouponService.deleteCoupon(id);
+                            loadData();
+                        } catch (error) {
+                            Alert.alert("Error", "Failed to delete coupon");
+                        } finally {
+                            setLoading(false);
+                        }
+                    }
+                }
+            ]
+        );
     };
 
     const renderCoupon = ({ item }: { item: Coupon }) => (
@@ -302,7 +366,7 @@ export default function CouponManager() {
                 <View>
                     <Text style={styles.couponCode}>{item.code}</Text>
                     <Text style={styles.couponDesc}>
-                        {item.discountType === 'FLAT' ? `₹${item.value} OFF` : `${item.value}% OFF`}
+                        {item.type === 'flat' ? `₹${item.value} OFF` : `${item.value}% OFF`}
                         {item.description ? ` • ${item.description}` : ''}
                         {item.categoryId && (
                             <Text style={styles.catBadge}>
@@ -316,14 +380,19 @@ export default function CouponManager() {
                         )}
                     </Text>
                 </View>
-                <Switch
-                    value={item.isActive}
-                    onValueChange={() => handleToggleStatus(item.id, item.isActive)}
-                    trackColor={{ false: "#767577", true: colors.primary }}
-                />
+                <View style={styles.headerRight}>
+                    <Switch
+                        value={item.isActive}
+                        onValueChange={() => handleToggleStatus(item._id || item.id, item.isActive)}
+                        trackColor={{ false: "#767577", true: colors.primary }}
+                    />
+                    <TouchableOpacity onPress={() => handleDelete(item._id || item.id)} style={styles.deleteBtn}>
+                        <Ionicons name="trash-outline" size={20} color="#ff4d4f" />
+                    </TouchableOpacity>
+                </View>
             </View>
             <View style={styles.couponFooter}>
-                <Text style={styles.usageText}>Used: {item.usageCount} / {item.usageLimit}</Text>
+                <Text style={styles.usageText}>Used: {item.usageCount || 0} / {item.usageLimit || '∞'}</Text>
                 <TouchableOpacity onPress={() => handleEdit(item)}>
                     <Text style={styles.editText}>Edit</Text>
                 </TouchableOpacity>
@@ -331,7 +400,16 @@ export default function CouponManager() {
         </View>
     );
 
-    if (loading) {
+    const renderFooter = () => {
+        if (!loadingMore) return null;
+        return (
+            <View style={styles.footerLoader}>
+                <ActivityIndicator size="small" color={colors.primary} />
+            </View>
+        );
+    };
+
+    if (loading && !loadingMore) {
         return (
             <View style={styles.centerContainer}>
                 <ActivityIndicator size="large" color={colors.primary} />
@@ -341,16 +419,24 @@ export default function CouponManager() {
 
     return (
         <View style={styles.container}>
-            <TouchableOpacity style={styles.addButton} onPress={handleCreate}>
-                <Ionicons name="add" size={24} color={colors.white} />
-                <Text style={styles.addButtonText}>Add New Coupon</Text>
-            </TouchableOpacity>
+            <View style={styles.topHeader}>
+                <View>
+                    <Text style={styles.totalCountText}>Total Coupons ({totalCoupons})</Text>
+                </View>
+                <TouchableOpacity style={styles.addButtonSmall} onPress={handleCreate}>
+                    <Ionicons name="add" size={20} color={colors.white} />
+                    <Text style={styles.addButtonTextSmall}>Add New</Text>
+                </TouchableOpacity>
+            </View>
 
             <FlatList
                 data={coupons}
                 renderItem={renderCoupon}
-                keyExtractor={(item) => item.id}
+                keyExtractor={(item) => item._id || item.id}
                 contentContainerStyle={styles.listContent}
+                onEndReached={handleLoadMore}
+                onEndReachedThreshold={0.5}
+                ListFooterComponent={renderFooter}
                 ListEmptyComponent={
                     <View style={styles.emptyContainer}>
                         <Text style={styles.emptyText}>No coupons found</Text>
@@ -380,6 +466,10 @@ const styles = StyleSheet.create({
         justifyContent: "center",
         alignItems: "center",
     },
+    footerLoader: {
+        paddingVertical: 20,
+        alignItems: "center",
+    },
     addButton: {
         flexDirection: "row",
         backgroundColor: colors.primary,
@@ -389,6 +479,31 @@ const styles = StyleSheet.create({
         justifyContent: "center",
         marginBottom: 16,
         gap: 8,
+    },
+    topHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    totalCountText: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: colors.textDark,
+    },
+    addButtonSmall: {
+        flexDirection: "row",
+        backgroundColor: colors.primary,
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+        borderRadius: 8,
+        alignItems: "center",
+        gap: 4,
+    },
+    addButtonTextSmall: {
+        color: colors.white,
+        fontWeight: "600",
+        fontSize: 14,
     },
     addButtonText: {
         color: colors.white,
@@ -409,8 +524,16 @@ const styles = StyleSheet.create({
     couponHeader: {
         flexDirection: "row",
         justifyContent: "space-between",
-        alignItems: "flex-start",
+        alignItems: "center",
         marginBottom: 12,
+    },
+    headerRight: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    deleteBtn: {
+        padding: 4,
     },
     couponCode: {
         fontSize: 18,

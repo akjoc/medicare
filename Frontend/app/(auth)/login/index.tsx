@@ -35,7 +35,7 @@ export default function LoginScreen() {
       }
     } catch (error: any) {
       console.error(error);
-      const message = error.response?.data?.message || "Login failed. Please check your credentials.";
+      const message = error.response?.data?.error || "Login failed. Please check your credentials.";
       Alert.alert("Login Failed", message);
     } finally {
       setLoading(false);

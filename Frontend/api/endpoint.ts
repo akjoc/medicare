@@ -22,4 +22,13 @@ export const ENDPOINTS = {
     UPDATE_PRODUCT: (id: string) => `/products/${id}`,
     DELETE_PRODUCT: (id: string) => `/products/${id}`,
     BULK_UPLOAD_PRODUCTS: "/products/bulk-upload",
+    // Coupon
+    CREATE_COUPON: "/coupons",
+    GET_COUPONS: "/coupons",
+    UPDATE_COUPON: (id: string) => `/coupons/${id}`,
+    TOGGLE_COUPON_STATUS: (id: string) => `/coupons/${id}/status`,
+    DELETE_COUPON: (id: string) => `/coupons/${id}`,
+    // Payment Configuration
+    GET_PAYMENT_CONFIG: "/payment-config",
+    UPDATE_PAYMENT_CONFIG: "/payment-config",
 } as const;

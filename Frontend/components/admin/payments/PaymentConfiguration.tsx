@@ -2,6 +2,7 @@ import { PaymentConfiguration } from "@/data/paymentMethods";
 import { PaymentService } from "@/services/payment.service";
 import { colors } from "@/styles/colors";
 import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from 'expo-image-picker';
 import React, { useEffect, useState } from "react";
 import {
     ActivityIndicator,
@@ -20,6 +21,7 @@ export default function PaymentConfigurationScreen() {
     const [config, setConfig] = useState<PaymentConfiguration | null>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [qrImage, setQrImage] = useState<any>(null);
 
     useEffect(() => {
         loadConfig();
@@ -37,12 +39,45 @@ export default function PaymentConfigurationScreen() {
         }
     };
 
+    const pickImage = async () => {
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'],
+            allowsEditing: false,
+            quality: 0.8,
+        });
+
+        if (!result.canceled) {
+            setQrImage(result.assets[0]);
+        }
+    };
+
     const handleSave = async () => {
         if (!config) return;
         setSaving(true);
         try {
-            await PaymentService.updateConfiguration(config);
+            // Clean payload to ONLY include fields required by backend in form-data
+            const updateData: any = {
+                codEnabled: config.codEnabled,
+                codNote: config.codNote,
+                advancePaymentEnabled: config.advancePaymentEnabled,
+                advancePaymentInstruction: config.advancePaymentInstruction,
+                upiQrEnabled: config.upiQrEnabled,
+                bankTransferEnabled: config.bankTransferEnabled,
+                bankName: config.bankName,
+                accountNumber: config.accountNumber,
+                ifscCode: config.ifscCode,
+                accountHolderName: config.accountHolderName,
+                upiId: config.upiId,
+                advancePaymentDiscountEnabled: config.advancePaymentDiscountEnabled,
+                discountType: config.discountType,
+                discountValue: config.discountValue,
+                discountDescription: config.discountDescription,
+            };
+
+            await PaymentService.updateConfiguration(updateData, qrImage);
             Alert.alert("Success", "Configuration saved successfully");
+            setQrImage(null);
+            loadConfig();
         } catch (error) {
             Alert.alert("Error", "Failed to save configuration");
         } finally {
@@ -58,8 +93,12 @@ export default function PaymentConfigurationScreen() {
         );
     }
 
+    const updateField = (field: keyof PaymentConfiguration, value: any) => {
+        setConfig(prev => prev ? { ...prev, [field]: value } : null);
+    };
+
     return (
-        <ScrollView style={styles.container}>
+        <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
             {/* COD Section */}
             <View style={styles.card}>
                 <View style={styles.headerRow}>
@@ -68,23 +107,19 @@ export default function PaymentConfigurationScreen() {
                         <Text style={styles.cardTitle}>Cash on Delivery (COD)</Text>
                     </View>
                     <Switch
-                        value={config.cod.enabled}
-                        onValueChange={(val) =>
-                            setConfig((prev) => prev ? { ...prev, cod: { ...prev.cod, enabled: val } } : null)
-                        }
+                        value={config.codEnabled}
+                        onValueChange={(val) => updateField('codEnabled', val)}
                         trackColor={{ false: "#767577", true: colors.primary }}
                     />
                 </View>
-                {config.cod.enabled && (
+                {config.codEnabled && (
                     <View style={styles.inputContainer}>
                         <Text style={styles.label}>Note to Customer</Text>
                         <TextInput
                             style={styles.input}
-                            value={config.cod.note}
-                            onChangeText={(text) =>
-                                setConfig((prev) => prev ? { ...prev, cod: { ...prev.cod, note: text } } : null)
-                            }
-                            placeholder="e.g. Verification required for large orders"
+                            value={config.codNote}
+                            onChangeText={(text) => updateField('codNote', text)}
+                            placeholder="e.g. Pay cash upon delivery."
                         />
                     </View>
                 )}
@@ -98,23 +133,19 @@ export default function PaymentConfigurationScreen() {
                         <Text style={styles.cardTitle}>Advance Payment</Text>
                     </View>
                     <Switch
-                        value={config.advance.enabled}
-                        onValueChange={(val) =>
-                            setConfig((prev) => prev ? { ...prev, advance: { ...prev.advance, enabled: val } } : null)
-                        }
+                        value={config.advancePaymentEnabled}
+                        onValueChange={(val) => updateField('advancePaymentEnabled', val)}
                         trackColor={{ false: "#767577", true: colors.primary }}
                     />
                 </View>
 
-                {config.advance.enabled && (
+                {config.advancePaymentEnabled && (
                     <View style={styles.expandedContent}>
                         <Text style={styles.sectionSubtitle}>Instructions</Text>
                         <TextInput
                             style={[styles.input, styles.textArea]}
-                            value={config.advance.instructions}
-                            onChangeText={(text) =>
-                                setConfig((prev) => prev ? { ...prev, advance: { ...prev.advance, instructions: text } } : null)
-                            }
+                            value={config.advancePaymentInstruction}
+                            onChangeText={(text) => updateField('advancePaymentInstruction', text)}
                             multiline
                             placeholder="Instructions for the user..."
                         />
@@ -126,85 +157,33 @@ export default function PaymentConfigurationScreen() {
                             <View style={styles.headerRow}>
                                 <Text style={styles.subSectionTitle}>UPI / QR Code</Text>
                                 <Switch
-                                    value={config.advance.methods.upi.enabled}
-                                    onValueChange={(val) =>
-                                        setConfig((prev) =>
-                                            prev
-                                                ? {
-                                                    ...prev,
-                                                    advance: {
-                                                        ...prev.advance,
-                                                        methods: {
-                                                            ...prev.advance.methods,
-                                                            upi: { ...prev.advance.methods.upi, enabled: val },
-                                                        },
-                                                    },
-                                                }
-                                                : null
-                                        )
-                                    }
+                                    value={config.upiQrEnabled}
+                                    onValueChange={(val) => updateField('upiQrEnabled', val)}
                                 />
                             </View>
-                            {config.advance.methods.upi.enabled && (
+                            {config.upiQrEnabled && (
                                 <>
                                     <View style={styles.inputContainer}>
                                         <Text style={styles.label}>UPI ID</Text>
                                         <TextInput
                                             style={styles.input}
-                                            value={config.advance.methods.upi.config.upiId}
-                                            onChangeText={(text) =>
-                                                setConfig((prev) =>
-                                                    prev
-                                                        ? {
-                                                            ...prev,
-                                                            advance: {
-                                                                ...prev.advance,
-                                                                methods: {
-                                                                    ...prev.advance.methods,
-                                                                    upi: {
-                                                                        ...prev.advance.methods.upi,
-                                                                        config: { ...prev.advance.methods.upi.config, upiId: text },
-                                                                    },
-                                                                },
-                                                            },
-                                                        }
-                                                        : null
-                                                )
-                                            }
+                                            value={config.upiId}
+                                            onChangeText={(text) => updateField('upiId', text)}
+                                            placeholder="e.g. test@lorem.com"
                                         />
                                     </View>
                                     <View style={styles.inputContainer}>
                                         <Text style={styles.label}>QR Code Image</Text>
                                         <View style={styles.qrUploadContainer}>
-                                            {config.advance.methods.upi.config.qrCodeUrl ? (
+                                            {(qrImage || config.qrCodeUrl) ? (
                                                 <View style={styles.qrPreview}>
                                                     <Image
-                                                        source={{ uri: config.advance.methods.upi.config.qrCodeUrl }}
+                                                        source={{ uri: qrImage?.uri || config.qrCodeUrl }}
                                                         style={styles.qrImage}
                                                     />
                                                     <TouchableOpacity
                                                         style={styles.changeQrBtn}
-                                                        onPress={() => {
-                                                            // Mock Image Picker
-                                                            const mockQr = "https://via.placeholder.com/150/000000/FFFFFF?text=New+QR";
-                                                            setConfig((prev) =>
-                                                                prev
-                                                                    ? {
-                                                                        ...prev,
-                                                                        advance: {
-                                                                            ...prev.advance,
-                                                                            methods: {
-                                                                                ...prev.advance.methods,
-                                                                                upi: {
-                                                                                    ...prev.advance.methods.upi,
-                                                                                    config: { ...prev.advance.methods.upi.config, qrCodeUrl: mockQr },
-                                                                                },
-                                                                            },
-                                                                        },
-                                                                    }
-                                                                    : null
-                                                            );
-                                                        }}
+                                                        onPress={pickImage}
                                                     >
                                                         <Text style={styles.changeQrText}>Change Image</Text>
                                                     </TouchableOpacity>
@@ -212,27 +191,7 @@ export default function PaymentConfigurationScreen() {
                                             ) : (
                                                 <TouchableOpacity
                                                     style={styles.uploadBtn}
-                                                    onPress={() => {
-                                                        // Mock Image Picker
-                                                        const mockQr = "https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=NewQR";
-                                                        setConfig((prev) =>
-                                                            prev
-                                                                ? {
-                                                                    ...prev,
-                                                                    advance: {
-                                                                        ...prev.advance,
-                                                                        methods: {
-                                                                            ...prev.advance.methods,
-                                                                            upi: {
-                                                                                ...prev.advance.methods.upi,
-                                                                                config: { ...prev.advance.methods.upi.config, qrCodeUrl: mockQr },
-                                                                            },
-                                                                        },
-                                                                    },
-                                                                }
-                                                                : null
-                                                        );
-                                                    }}
+                                                    onPress={pickImage}
                                                 >
                                                     <Ionicons name="cloud-upload-outline" size={24} color={colors.primary} />
                                                     <Text style={styles.uploadBtnText}>Upload QR Code</Text>
@@ -251,142 +210,47 @@ export default function PaymentConfigurationScreen() {
                             <View style={styles.headerRow}>
                                 <Text style={styles.subSectionTitle}>Bank Transfer</Text>
                                 <Switch
-                                    value={config.advance.methods.bankTransfer.enabled}
-                                    onValueChange={(val) =>
-                                        setConfig((prev) =>
-                                            prev
-                                                ? {
-                                                    ...prev,
-                                                    advance: {
-                                                        ...prev.advance,
-                                                        methods: {
-                                                            ...prev.advance.methods,
-                                                            bankTransfer: { ...prev.advance.methods.bankTransfer, enabled: val },
-                                                        },
-                                                    },
-                                                }
-                                                : null
-                                        )
-                                    }
+                                    value={config.bankTransferEnabled}
+                                    onValueChange={(val) => updateField('bankTransferEnabled', val)}
                                 />
                             </View>
-                            {config.advance.methods.bankTransfer.enabled && (
+                            {config.bankTransferEnabled && (
                                 <>
                                     <View style={styles.inputContainer}>
                                         <Text style={styles.label}>Bank Name</Text>
                                         <TextInput
                                             style={styles.input}
-                                            value={config.advance.methods.bankTransfer.config.bankName}
-                                            onChangeText={(text) =>
-                                                setConfig((prev) =>
-                                                    prev
-                                                        ? {
-                                                            ...prev,
-                                                            advance: {
-                                                                ...prev.advance,
-                                                                methods: {
-                                                                    ...prev.advance.methods,
-                                                                    bankTransfer: {
-                                                                        ...prev.advance.methods.bankTransfer,
-                                                                        config: {
-                                                                            ...prev.advance.methods.bankTransfer.config,
-                                                                            bankName: text,
-                                                                        },
-                                                                    },
-                                                                },
-                                                            },
-                                                        }
-                                                        : null
-                                                )
-                                            }
+                                            value={config.bankName}
+                                            onChangeText={(text) => updateField('bankName', text)}
+                                            placeholder="e.g. ICICI"
                                         />
                                     </View>
                                     <View style={styles.inputContainer}>
                                         <Text style={styles.label}>Account Number</Text>
                                         <TextInput
                                             style={styles.input}
-                                            value={config.advance.methods.bankTransfer.config.accountNumber}
-                                            onChangeText={(text) =>
-                                                setConfig((prev) =>
-                                                    prev
-                                                        ? {
-                                                            ...prev,
-                                                            advance: {
-                                                                ...prev.advance,
-                                                                methods: {
-                                                                    ...prev.advance.methods,
-                                                                    bankTransfer: {
-                                                                        ...prev.advance.methods.bankTransfer,
-                                                                        config: {
-                                                                            ...prev.advance.methods.bankTransfer.config,
-                                                                            accountNumber: text,
-                                                                        },
-                                                                    },
-                                                                },
-                                                            },
-                                                        }
-                                                        : null
-                                                )
-                                            }
+                                            value={config.accountNumber}
+                                            onChangeText={(text) => updateField('accountNumber', text)}
                                             keyboardType="numeric"
+                                            placeholder="Account Number"
                                         />
                                     </View>
                                     <View style={styles.inputContainer}>
                                         <Text style={styles.label}>IFSC Code</Text>
                                         <TextInput
                                             style={styles.input}
-                                            value={config.advance.methods.bankTransfer.config.ifscCode}
-                                            onChangeText={(text) =>
-                                                setConfig((prev) =>
-                                                    prev
-                                                        ? {
-                                                            ...prev,
-                                                            advance: {
-                                                                ...prev.advance,
-                                                                methods: {
-                                                                    ...prev.advance.methods,
-                                                                    bankTransfer: {
-                                                                        ...prev.advance.methods.bankTransfer,
-                                                                        config: {
-                                                                            ...prev.advance.methods.bankTransfer.config,
-                                                                            ifscCode: text,
-                                                                        },
-                                                                    },
-                                                                },
-                                                            },
-                                                        }
-                                                        : null
-                                                )
-                                            }
+                                            value={config.ifscCode}
+                                            onChangeText={(text) => updateField('ifscCode', text)}
+                                            placeholder="IFSC Code"
                                         />
                                     </View>
                                     <View style={styles.inputContainer}>
                                         <Text style={styles.label}>Account Holder Name</Text>
                                         <TextInput
                                             style={styles.input}
-                                            value={config.advance.methods.bankTransfer.config.accountHolderName}
-                                            onChangeText={(text) =>
-                                                setConfig((prev) =>
-                                                    prev
-                                                        ? {
-                                                            ...prev,
-                                                            advance: {
-                                                                ...prev.advance,
-                                                                methods: {
-                                                                    ...prev.advance.methods,
-                                                                    bankTransfer: {
-                                                                        ...prev.advance.methods.bankTransfer,
-                                                                        config: {
-                                                                            ...prev.advance.methods.bankTransfer.config,
-                                                                            accountHolderName: text,
-                                                                        },
-                                                                    },
-                                                                },
-                                                            },
-                                                        }
-                                                        : null
-                                                )
-                                            }
+                                            value={config.accountHolderName}
+                                            onChangeText={(text) => updateField('accountHolderName', text)}
+                                            placeholder="Account Holder Name"
                                         />
                                     </View>
                                 </>
@@ -404,18 +268,16 @@ export default function PaymentConfigurationScreen() {
                         <Text style={styles.cardTitle}>Payment Discount</Text>
                     </View>
                     <Switch
-                        value={config.discount.enabled}
-                        onValueChange={(val) =>
-                            setConfig((prev) => prev ? { ...prev, discount: { ...prev.discount, enabled: val } } : null)
-                        }
+                        value={config.advancePaymentDiscountEnabled}
+                        onValueChange={(val) => updateField('advancePaymentDiscountEnabled', val)}
                         trackColor={{ false: "#767577", true: colors.primary }}
                     />
                 </View>
 
-                {config.discount.enabled && (
+                {config.advancePaymentDiscountEnabled && (
                     <View style={styles.expandedContent}>
                         <Text style={styles.explanation}>
-                            Apply a discount when customers pay via {config.advance.enabled ? "Advance Payment" : "Configured Methods"}.
+                            Apply a discount when customers pay via {config.advancePaymentEnabled ? "Advance Payment" : "Configured Methods"}.
                         </Text>
 
                         <View style={styles.row}>
@@ -425,25 +287,25 @@ export default function PaymentConfigurationScreen() {
                                     <TouchableOpacity
                                         style={[
                                             styles.typeBtn,
-                                            config.discount.type === "PERCENTAGE" && styles.typeBtnSelected
+                                            config.discountType === "PERCENT" && styles.typeBtnSelected
                                         ]}
-                                        onPress={() => setConfig(prev => prev ? { ...prev, discount: { ...prev.discount, type: "PERCENTAGE" } } : null)}
+                                        onPress={() => updateField('discountType', 'PERCENT')}
                                     >
                                         <Text style={[
                                             styles.typeBtnText,
-                                            config.discount.type === "PERCENTAGE" && styles.typeBtnTextSelected
+                                            config.discountType === "PERCENT" && styles.typeBtnTextSelected
                                         ]}>%</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity
                                         style={[
                                             styles.typeBtn,
-                                            config.discount.type === "FLAT" && styles.typeBtnSelected
+                                            config.discountType === "FLAT" && styles.typeBtnSelected
                                         ]}
-                                        onPress={() => setConfig(prev => prev ? { ...prev, discount: { ...prev.discount, type: "FLAT" } } : null)}
+                                        onPress={() => updateField('discountType', 'FLAT')}
                                     >
                                         <Text style={[
                                             styles.typeBtnText,
-                                            config.discount.type === "FLAT" && styles.typeBtnTextSelected
+                                            config.discountType === "FLAT" && styles.typeBtnTextSelected
                                         ]}>₹</Text>
                                     </TouchableOpacity>
                                 </View>
@@ -453,17 +315,8 @@ export default function PaymentConfigurationScreen() {
                                 <Text style={styles.label}>Value</Text>
                                 <TextInput
                                     style={styles.input}
-                                    value={config.discount.value.toString()}
-                                    onChangeText={(text) =>
-                                        setConfig((prev) =>
-                                            prev
-                                                ? {
-                                                    ...prev,
-                                                    discount: { ...prev.discount, value: Number(text) || 0 },
-                                                }
-                                                : null
-                                        )
-                                    }
+                                    value={config.discountValue.toString()}
+                                    onChangeText={(text) => updateField('discountValue', Number(text) || 0)}
                                     keyboardType="numeric"
                                 />
                             </View>
@@ -473,10 +326,8 @@ export default function PaymentConfigurationScreen() {
                             <Text style={styles.label}>Description</Text>
                             <TextInput
                                 style={styles.input}
-                                value={config.discount.description}
-                                onChangeText={(text) =>
-                                    setConfig((prev) => prev ? { ...prev, discount: { ...prev.discount, description: text } } : null)
-                                }
+                                value={config.discountDescription === "null" ? "" : config.discountDescription}
+                                onChangeText={(text) => updateField('discountDescription', text)}
                                 placeholder="e.g. 5% off on Advance Payment"
                             />
                         </View>

@@ -14,7 +14,7 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+// Removed SafeAreaView import
 
 export default function SecurityScreen() {
     const router = useRouter();
@@ -60,7 +60,7 @@ export default function SecurityScreen() {
     };
 
     return (
-        <SafeAreaView style={styles.container}>
+        <View style={styles.container}>
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={24} color={colors.textDark} />
@@ -122,7 +122,7 @@ export default function SecurityScreen() {
                     </TouchableOpacity>
                 </View>
             </KeyboardAvoidingView>
-        </SafeAreaView>
+        </View>
     );
 }
 
@@ -136,7 +136,7 @@ const styles = StyleSheet.create({
         alignItems: "center",
         justifyContent: "space-between",
         paddingHorizontal: 20,
-        paddingVertical: 16,
+        paddingVertical: 4,
         backgroundColor: colors.white,
         borderBottomWidth: 1,
         borderBottomColor: colors.border,
@@ -156,8 +156,8 @@ const styles = StyleSheet.create({
     },
     content: {
         flex: 1,
-        padding: 20,
-        gap: 20,
+        padding: 12,
+        gap: 12,
     },
     inputGroup: {
         gap: 8,
@@ -179,7 +179,7 @@ const styles = StyleSheet.create({
         color: colors.textDark,
     },
     footer: {
-        padding: 20,
+        padding: 8,
         backgroundColor: colors.white,
         borderTopWidth: 1,
         borderTopColor: colors.border,

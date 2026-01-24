@@ -1,79 +1,45 @@
-export interface BankDetails {
+export interface PaymentConfiguration {
+    id: number;
+    codEnabled: boolean;
+    codNote: string;
+    advancePaymentEnabled: boolean;
+    advancePaymentInstruction: string;
+    upiQrEnabled: boolean;
+    bankTransferEnabled: boolean;
     bankName: string;
     accountNumber: string;
     ifscCode: string;
     accountHolderName: string;
-}
-
-export interface UPIConfig {
     upiId: string;
-    qrCodeUrl: string; // Mock URL
-}
-
-export interface AdvancePaymentConfig {
-    enabled: boolean;
-    methods: {
-        upi: {
-            enabled: boolean;
-            config: UPIConfig;
-        };
-        bankTransfer: {
-            enabled: boolean;
-            config: BankDetails;
-        };
-    };
-    instructions: string;
-}
-
-export interface CODConfig {
-    enabled: boolean;
-    note?: string;
-}
-
-export interface PaymentDiscount {
-    enabled: boolean;
-    type: 'PERCENTAGE' | 'FLAT';
-    value: number;
-    description: string;
-}
-
-export interface PaymentConfiguration {
-    cod: CODConfig;
-    advance: AdvancePaymentConfig;
-    discount: PaymentDiscount;
+    qrCodeUrl: string;
+    qrCodePublicId: string;
+    advancePaymentDiscountEnabled: boolean;
+    discountType: 'PERCENT' | 'FLAT';
+    discountValue: number;
+    discountDescription: string;
+    createdAt?: string;
+    updatedAt?: string;
 }
 
 export const MOCK_PAYMENT_CONFIG: PaymentConfiguration = {
-    cod: {
-        enabled: true,
-        note: "Pay cash upon delivery.",
-    },
-    advance: {
-        enabled: true,
-        instructions: "Please share the payment screenshot with your Order ID on WhatsApp after payment.",
-        methods: {
-            upi: {
-                enabled: true,
-                config: {
-                    upiId: "medicare@okhdfcbank",
-                    qrCodeUrl: "https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=medicare@okhdfcbank",
-                },
-            },
-            bankTransfer: {
-                enabled: true,
-                config: {
-                    bankName: "HDFC Bank",
-                    accountNumber: "50100123456789",
-                    ifscCode: "HDFC0001234",
-                    accountHolderName: "Health Harbour Distributors Pvt Ltd",
-                },
-            },
-        },
-    },
-    discount: {
-        enabled: true,
-        type: 'PERCENTAGE',
-        value: 5,
-        description: "5% off on total bill when paid in advance",
-    },
+    id: 1,
+    codEnabled: true,
+    codNote: "Pay cash upon delivery.",
+    advancePaymentEnabled: true,
+    advancePaymentInstruction: "Please share the payment screenshot with your Order ID on WhatsApp after payment.",
+    upiQrEnabled: true,
+    bankTransferEnabled: false,
+    bankName: "ICICI",
+    accountNumber: "308348601588",
+    ifscCode: "ICIC00016",
+    accountHolderName: "Test",
+    upiId: "test@lorem.com",
+    qrCodeUrl: "https://res.cloudinary.com/dhvch5umt/image/upload/v1769105665/medicare_products/avxpn4knrvpauldsmdwn.jpg",
+    qrCodePublicId: "medicare_products/avxpn4knrvpauldsmdwn",
+    advancePaymentDiscountEnabled: true,
+    discountType: "PERCENT",
+    discountValue: 5,
+    discountDescription: "null",
+    createdAt: "2026-01-22T17:37:19.000Z",
+    updatedAt: "2026-01-22T18:14:36.000Z"
 };

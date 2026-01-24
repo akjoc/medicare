@@ -1,24 +1,29 @@
-export type DiscountType = 'PERCENTAGE' | 'FLAT';
+export type DiscountType = 'percent' | 'flat';
 
 export interface Coupon {
-    id: string;
+    _id: string;
+    id: string; // Keep for backward compatibility if needed, but we'll use _id
     code: string;
-    discountType: DiscountType;
+    type: DiscountType;
     value: number;
     expiryDate: string; // ISO Date string
     usageLimit: number;
     usageCount: number;
     isActive: boolean;
     description?: string;
-    categoryId?: string; // Optional: Apply to specific category
-    retailerId?: string; // Optional: Apply to specific retailer
+    shortDescription?: string;
+    categoryIds?: string[]; // Array of IDs
+    retailerIds?: string[]; // Array of IDs
+    categoryId?: string; // Legacy field
+    retailerId?: string; // Legacy field
 }
 
 export const MOCK_COUPONS: Coupon[] = [
     {
+        _id: '1',
         id: '1',
         code: 'WELCOME50',
-        discountType: 'FLAT',
+        type: 'flat',
         value: 50,
         expiryDate: '2025-12-31T23:59:59Z',
         usageLimit: 1000,
@@ -27,9 +32,10 @@ export const MOCK_COUPONS: Coupon[] = [
         description: 'Flat ₹50 off for new users',
     },
     {
+        _id: '2',
         id: '2',
         code: 'SAVE10',
-        discountType: 'PERCENTAGE',
+        type: 'percent',
         value: 10,
         expiryDate: '2025-06-30T23:59:59Z',
         usageLimit: 500,
@@ -38,9 +44,10 @@ export const MOCK_COUPONS: Coupon[] = [
         description: '10% off on all medicines',
     },
     {
+        _id: '3',
         id: '3',
         code: 'BULK20',
-        discountType: 'PERCENTAGE',
+        type: 'percent',
         value: 20,
         expiryDate: '2025-03-31T23:59:59Z',
         usageLimit: 100,

@@ -1,38 +1,62 @@
-import { Coupon, MOCK_COUPONS } from '@/data/coupons';
+import { privateClient } from '@/api/client';
+import { ENDPOINTS } from '@/api/endpoint';
+import { Coupon } from '@/data/coupons';
 
-// Simulate storage
-let localCoupons = [...MOCK_COUPONS];
+export interface CouponResponse {
+    coupons: Coupon[];
+    totalCoupons: number;
+    totalPages: number;
+    currentPage: number;
+}
 
 export const CouponService = {
-    getAllCoupons: async (): Promise<Coupon[]> => {
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        return [...localCoupons];
+    getAllCoupons: async (page = 1, limit = 20): Promise<CouponResponse> => {
+        try {
+            const response = await privateClient.get(ENDPOINTS.GET_COUPONS, {
+                params: { page, limit }
+            });
+            return response.data;
+        } catch (error) {
+            console.error("Error fetching coupons:", error);
+            throw error;
+        }
     },
 
-    createCoupon: async (coupon: Omit<Coupon, 'id' | 'usageCount'>): Promise<Coupon> => {
-        await new Promise((resolve) => setTimeout(resolve, 800));
-        const newCoupon: Coupon = {
-            ...coupon,
-            id: Math.random().toString(36).substr(2, 9),
-            usageCount: 0,
-        };
-        localCoupons.push(newCoupon);
-        return newCoupon;
+    createCoupon: async (coupon: any): Promise<Coupon> => {
+        try {
+            const response = await privateClient.post(ENDPOINTS.CREATE_COUPON, coupon);
+            return response.data;
+        } catch (error) {
+            console.error("Error creating coupon:", error);
+            throw error;
+        }
     },
 
-    updateCoupon: async (id: string, updates: Partial<Coupon>): Promise<Coupon> => {
-        await new Promise((resolve) => setTimeout(resolve, 800));
-        const index = localCoupons.findIndex((c) => c.id === id);
-        if (index === -1) throw new Error('Coupon not found');
+    updateCoupon: async (id: string, updates: any): Promise<Coupon> => {
+        try {
+            const response = await privateClient.put(ENDPOINTS.UPDATE_COUPON(id), updates);
+            return response.data;
+        } catch (error) {
+            console.error("Error updating coupon:", error);
+            throw error;
+        }
+    },
 
-        localCoupons[index] = { ...localCoupons[index], ...updates };
-        return localCoupons[index];
+    toggleCouponStatus: async (id: string): Promise<void> => {
+        try {
+            await privateClient.patch(ENDPOINTS.TOGGLE_COUPON_STATUS(id));
+        } catch (error) {
+            console.error("Error toggling coupon status:", error);
+            throw error;
+        }
     },
 
     deleteCoupon: async (id: string): Promise<void> => {
-        // In this requirement, "Disable" is mostly used, but soft delete or hard delete logic here.
-        // For now, let's assume this deletes it from the list or we can just use update to set active=false
-        await new Promise((resolve) => setTimeout(resolve, 600));
-        localCoupons = localCoupons.filter(c => c.id !== id);
+        try {
+            await privateClient.delete(ENDPOINTS.DELETE_COUPON(id));
+        } catch (error) {
+            console.error("Error deleting coupon:", error);
+            throw error;
+        }
     }
 };
