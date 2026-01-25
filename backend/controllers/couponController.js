@@ -173,28 +173,35 @@ const applyCoupon = async (req, res) => {
             return res.status(400).json({ error: 'Coupon usage limit reached' });
         }
 
+        const allowedRetailers = Array.isArray(coupon.retailerIds) ? coupon.retailerIds : JSON.parse(coupon.retailerIds || '[]');
+
         // Retailer Restriction Check
-        if (retailerId && coupon.retailerIds && coupon.retailerIds.length > 0) {
-            const allowedRetailers = Array.isArray(coupon.retailerIds) ? coupon.retailerIds : JSON.parse(coupon.retailerIds);
-            // Ensure strict comparison if types might differ (string vs number)
-            // Assuming retailerId from body matches type in array (likely number)
-            if (!allowedRetailers.includes(parseInt(retailerId)) && !allowedRetailers.includes(String(retailerId))) {
+        if (retailerId && allowedRetailers.length > 0) {
+            const isRetailerAllowed = allowedRetailers.some(id => String(id) === String(retailerId));
+            if (!isRetailerAllowed) {
                 return res.status(400).json({ error: 'This coupon is not valid for your account' });
             }
         }
 
         // Category Restriction Check
         if (cartItems && coupon.categoryIds && coupon.categoryIds.length > 0) {
-            const allowedCategories = Array.isArray(coupon.categoryIds) ? coupon.categoryIds : JSON.parse(coupon.categoryIds);
+            const allowedCategories = Array.isArray(coupon.categoryIds) ? coupon.categoryIds : JSON.parse(coupon.categoryIds || '[]');
 
-            // Check if ANY item in the cart belongs to an allowed category
-            // Assuming cartItems has { categoryId: ... }
-            const hasEligibleItem = cartItems.some(item =>
-                allowedCategories.includes(item.categoryId) || allowedCategories.includes(String(item.categoryId))
-            );
+            if (allowedCategories.length > 0) {
+                // Check if ANY item in the cart belongs to an allowed category
+                const hasEligibleItem = cartItems.some(item => {
+                    // item.categoryId can be a single ID or an array of IDs
+                    const itemCategoryIds = Array.isArray(item.categoryId) ? item.categoryId : [item.categoryId];
 
-            if (!hasEligibleItem) {
-                return res.status(400).json({ error: 'This coupon requires purchase of items from specific categories' });
+                    // Check if there's any intersection between item's categories and allowed categories
+                    return itemCategoryIds.some(itemCatId =>
+                        allowedCategories.some(allowedCatId => String(allowedCatId) === String(itemCatId))
+                    );
+                });
+
+                if (!hasEligibleItem) {
+                    return res.status(400).json({ error: 'This coupon requires purchase of items from specific categories' });
+                }
             }
         }
 
