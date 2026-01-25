@@ -170,7 +170,8 @@ const getAllProducts = async (req, res) => {
             limit,
             offset,
             order: [['createdAt', 'DESC']],
-            subQuery: false // IMPORTANT: Required when filtering by associated model (Category name) with limit/offset
+            subQuery: false, // IMPORTANT: Required when filtering by associated model (Category name) with limit/offset
+            distinct: true // ensure distinct count of products, not joined rows
         };
 
         if (search) {
@@ -186,12 +187,18 @@ const getAllProducts = async (req, res) => {
         }
 
         // 1. FILTER INACTIVE COMPANIES
+        // 1. FILTER INACTIVE COMPANIES
         // If user is NOT Admin, they should only see products from ACTIVE companies.
         if (!req.user || req.user.role !== 'admin') {
-            if (queryOptions.include && queryOptions.include[1]) {
-                queryOptions.include[1].where = { status: 'active' };
-                queryOptions.include[1].required = true; // INNER JOIN to exclude products with no active company
-            }
+            // Using top-level where with association syntax ensures findAndCountAll respects it for the count query
+            // and forces an INNER JOIN
+            queryOptions.where = {
+                ...queryOptions.where,
+                '$Company.status$': 'active'
+            };
+
+            // We don't strictly need to set required: true on the include if we usage top level where,
+            // but keeping the include clean is good.
         }
 
         // 2. RETAILER PERMISSIONS (Category-based)
