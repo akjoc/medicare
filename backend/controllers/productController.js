@@ -3,6 +3,7 @@ const { sequelize } = require('../config/database');
 const Product = require('../models/product');
 const Category = require('../models/category');
 const Retailer = require('../models/retailer');
+const Company = require('../models/company');
 const { cloudinary } = require('../config/cloudinaryConfig');
 const { getDescendantCategoryIds } = require('../utils/categoryHelpers');
 const xlsx = require('xlsx');
@@ -113,6 +114,18 @@ const createProduct = async (req, res) => {
             packing // Add Packing
         });
 
+        // Link Company logic:
+        // Use provided companies array (first item) to link with Company model
+        const companyTags = parseArrayField(companies);
+        if (companyTags && companyTags.length > 0) {
+            const companyName = companyTags[0];
+            const [company] = await Company.findOrCreate({
+                where: { name: companyName },
+                defaults: { status: 'active' }
+            });
+            await product.setCompany(company);
+        }
+
         if (targetCategoryIds.length > 0) {
             await product.setCategories(targetCategoryIds);
         }
@@ -143,15 +156,22 @@ const getAllProducts = async (req, res) => {
         const offset = (page - 1) * limit;
 
         let queryOptions = {
-            include: [{
-                model: Category,
-                as: 'Categories',
-                through: { attributes: [] }
-            }],
+            include: [
+                {
+                    model: Category,
+                    as: 'Categories',
+                    through: { attributes: [] }
+                },
+                {
+                    model: Company,
+                    attributes: ['id', 'name', 'status']
+                }
+            ],
             limit,
             offset,
             order: [['createdAt', 'DESC']],
-            subQuery: false // IMPORTANT: Required when filtering by associated model (Category name) with limit/offset
+            subQuery: false, // IMPORTANT: Required when filtering by associated model (Category name) with limit/offset
+            distinct: true // ensure distinct count of products, not joined rows
         };
 
         if (search) {
@@ -166,7 +186,22 @@ const getAllProducts = async (req, res) => {
             };
         }
 
-        // Check if user is a Retailer and filter permissions
+        // 1. FILTER INACTIVE COMPANIES
+        // 1. FILTER INACTIVE COMPANIES
+        // If user is NOT Admin, they should only see products from ACTIVE companies.
+        if (!req.user || req.user.role !== 'admin') {
+            // Using top-level where with association syntax ensures findAndCountAll respects it for the count query
+            // and forces an INNER JOIN
+            queryOptions.where = {
+                ...queryOptions.where,
+                '$Company.status$': 'active'
+            };
+
+            // We don't strictly need to set required: true on the include if we usage top level where,
+            // but keeping the include clean is good.
+        }
+
+        // 2. RETAILER PERMISSIONS (Category-based)
         if (req.user && req.user.role === 'retailer') {
             const retailer = await Retailer.findOne({ where: { UserId: req.user.id } });
             if (retailer) {
@@ -194,9 +229,8 @@ const getAllProducts = async (req, res) => {
                         queryOptions.include[0].where = { id: { [Op.in]: expandedCategoryIds } };
                         queryOptions.include[0].required = true; // Inner join to enforce filter
                     }
-                    // Note: No need to touch top-level queryOptions.where for this anymore
                 }
-                // Else: Do nothing, let them see all products
+                // Else: Do nothing, let them see all products (subject to company filter above)
             }
         }
 
@@ -257,10 +291,16 @@ const getAllProducts = async (req, res) => {
 const getProductById = async (req, res) => {
     try {
         const product = await Product.findByPk(req.params.id, {
-            include: {
-                model: Category,
-                through: { attributes: [] } // Exclude junction table data
-            }
+            include: [
+                {
+                    model: Category,
+                    through: { attributes: [] } // Exclude junction table data
+                },
+                {
+                    model: Company,
+                    attributes: ['id', 'name', 'status']
+                }
+            ]
         });
         if (product) {
             // Fetch raw data for dynamic columns
@@ -375,6 +415,18 @@ const updateProduct = async (req, res) => {
                 through: { attributes: [] }
             }
         });
+
+        // Link Company logic (Update):
+        const companyTags = parseArrayField(companies);
+        if (companyTags && companyTags.length > 0) {
+            const companyName = companyTags[0];
+            const [company] = await Company.findOrCreate({
+                where: { name: companyName },
+                defaults: { status: 'active' }
+            });
+            await product.setCompany(company);
+        }
+
         res.status(200).json(getCleanProduct(updatedProduct));
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -718,6 +770,22 @@ const bulkUploadProducts = async (req, res) => {
 
                 if (targetCategoryId) {
                     await product.setCategories([targetCategoryId]);
+                }
+
+                // Link Company logic (Bulk Upload):
+                if (companies && companies.length > 0) {
+                    const companyName = companies[0];
+                    if (companyName) {
+                        try {
+                            const [company] = await Company.findOrCreate({
+                                where: { name: companyName },
+                                defaults: { status: 'active' }
+                            });
+                            await product.setCompany(company);
+                        } catch (err) {
+                            console.error(`Row ${rowNumber}: Failed to link company:`, err.message);
+                        }
+                    }
                 }
 
                 // --- DYNAMIC DATA INSERTION START ---

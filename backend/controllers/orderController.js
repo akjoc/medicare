@@ -1,11 +1,12 @@
 const { Cart, CartItem, Product, User, Order, OrderItem, Coupon, AppSetting, PaymentConfig, Retailer, Category } = require('../models/associations');
 const { sequelize } = require('../config/database');
+const { Op } = require('sequelize');
 
 // Helper to calc delivery fee (Mock logic or DB config)
+// Helper to calc delivery fee (Mock logic or DB config)
 const calculateDeliveryFee = async (subTotal, address) => {
-    // Example: Free if > 500, else 40
-    if (subTotal > 500) return 0;
-    return 40;
+    // Delivery is FREE for all
+    return 0;
 };
 
 const getValidCoupon = async (code, subTotal, validItems, userId) => {
@@ -398,8 +399,10 @@ const placeOrder = async (req, res) => {
             couponCode: validCouponCode,
             deliveryFee,
             paymentMethod,
-            paymentStatus: paymentMethod === 'ONLINE' ? 'pending' : 'pending', // Usually pending until verified
-            status: 'pending', // Start as pending
+            deliveryFee,
+            paymentMethod,
+            paymentStatus: paymentMethod === 'ONLINE' ? 'pending' : 'pending',
+            status: paymentMethod === 'ONLINE' ? 'Awaiting Payment Confirmation' : 'Processing', // Processing for COD
             retailerName,
             shopName
         }, { transaction: t });
@@ -454,7 +457,10 @@ const getUserOrders = async (req, res) => {
             include: [
                 {
                     model: OrderItem,
-                    include: [Product]
+                    include: [{
+                        model: Product,
+                        attributes: ['id', 'name', 'sku', 'description', 'imageUrls', 'companies', 'salt', 'dosage', 'packing']
+                    }]
                 }
             ],
             order: [['createdAt', 'DESC']]
@@ -469,14 +475,120 @@ const getUserOrders = async (req, res) => {
 // @desc    Get all orders (Admin/Retailer)
 // @route   GET /api/orders/all
 // @access  Private/Admin
+// @desc    Get all orders (Admin/Retailer)
+// @route   GET /api/orders/all
+// @access  Private/Admin
 const getAllOrders = async (req, res) => {
     try {
-        const orders = await Order.findAll({
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const offset = (page - 1) * limit;
+        const search = req.query.search || '';
+
+        // Build Query
+        const whereClause = {};
+
+        if (search) {
+            const searchConditions = [
+                { retailerName: { [Op.like]: `%${search}%` } },
+                { shopName: { [Op.like]: `%${search}%` } }
+            ];
+
+            // If search term is a number, allow searching by Order ID
+            if (!isNaN(search)) {
+                searchConditions.push({ id: parseInt(search) });
+            }
+
+            whereClause[Op.or] = searchConditions;
+        }
+
+        const { count, rows } = await Order.findAndCountAll({
+            where: whereClause,
             include: [
                 { model: User, attributes: ['id', 'name', 'email'] },
                 {
                     model: OrderItem,
-                    include: [Product]
+                    include: [{
+                        model: Product,
+                        // Sanitize Product details
+                        attributes: ['id', 'name', 'sku', 'description', 'imageUrls', 'companies', 'salt', 'dosage', 'packing']
+                    }]
+                }
+            ],
+            order: [['createdAt', 'DESC']],
+            limit: limit,
+            offset: offset,
+            distinct: true // Important for correct count with includes
+        });
+
+        res.json({
+            orders: rows,
+            total: count,
+            page,
+            pages: Math.ceil(count / limit),
+            limit
+        });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Server error' });
+    }
+};
+
+// @desc    Upload Invoice (Admin)
+// @route   POST /api/orders/:id/invoice
+// @access  Private/Admin
+const uploadInvoice = async (req, res) => {
+    try {
+        const orderId = req.params.id;
+
+        if (!req.file) {
+            return res.status(400).json({ error: 'No invoice file uploaded' });
+        }
+
+        const order = await Order.findByPk(orderId);
+        if (!order) {
+            return res.status(404).json({ error: 'Order not found' });
+        }
+
+        // req.file.path contains the Cloudinary URL
+        order.invoiceUrl = req.file.path;
+        await order.save();
+
+        res.json({
+            message: 'Invoice uploaded successfully',
+            invoiceUrl: order.invoiceUrl
+        });
+
+    } catch (error) {
+        console.error('Upload Invoice Error:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+};
+
+// @desc    Get all orders for a particular retailer (Admin)
+// @route   GET /api/orders/retailer/:retailerId
+// @access  Private/Admin
+const getRetailerOrders = async (req, res) => {
+    try {
+        const { retailerId } = req.params;
+        // Assuming retailerId passed here is the User ID of the retailer
+        // If it's the Retailer table ID, we need to find associated User ID or store retailerId in Order.
+        // Current implementation: Order stores 'userId' (which is the retailer's user account).
+        // Let's assume params is userId. If prompt meant Retailer ID, we might need a lookup.
+        // But usually Retailer ID = User ID in simplified relationships or we check.
+        // Let's use userId for now as it's the FK in Order.
+
+        const orders = await Order.findAll({
+            where: { userId: retailerId },
+            include: [
+                { model: User, attributes: ['id', 'name', 'email'] },
+                {
+                    model: OrderItem,
+                    include: [{
+                        model: Product,
+                        attributes: ['id', 'name', 'sku', 'description', 'imageUrls', 'companies', 'salt', 'dosage', 'packing']
+                    }]
                 }
             ],
             order: [['createdAt', 'DESC']]
@@ -488,4 +600,164 @@ const getAllOrders = async (req, res) => {
     }
 };
 
-module.exports = { getCheckoutSummary, placeOrder, getUserOrders, getAllOrders };
+// @desc    Get Order by ID (Admin or Order Owner)
+// @route   GET /api/orders/:id
+// @access  Private
+const getOrderById = async (req, res) => {
+    try {
+        const orderId = req.params.id;
+        const order = await Order.findByPk(orderId, {
+            include: [
+                { model: User, attributes: ['id', 'name', 'email'] },
+                {
+                    model: OrderItem,
+                    include: [{
+                        model: Product,
+                        // Sanitize Product details (Hide buyingPrice, salePrice, stock)
+                        attributes: ['id', 'name', 'sku', 'description', 'imageUrls', 'companies', 'salt', 'dosage', 'packing']
+                    }]
+                }
+            ]
+        });
+
+        if (!order) {
+            return res.status(404).json({ error: 'Order not found' });
+        }
+
+        // Access Control
+        // 1. Admin can see any order
+        // 2. User can see ONLY their own order
+        if (req.user.role !== 'admin' && order.userId !== req.user.id) {
+            return res.status(401).json({ error: 'Not authorized to view this order' });
+        }
+
+        res.json(order);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Server error' });
+    }
+};
+
+// @desc    Update Payment Status (Admin)
+// @route   PUT /api/orders/:id/payment-status
+// @access  Private/Admin
+const updatePaymentStatus = async (req, res) => {
+    try {
+        const orderId = req.params.id;
+        const { status } = req.body;
+
+        const allowedStatuses = ['pending', 'approved', 'rejected'];
+        if (!allowedStatuses.includes(status)) {
+            return res.status(400).json({ error: `Invalid status. Allowed values: ${allowedStatuses.join(', ')}` });
+        }
+
+        const order = await Order.findByPk(orderId);
+        if (!order) {
+            return res.status(404).json({ error: 'Order not found' });
+        }
+
+        order.paymentStatus = status;
+        await order.save();
+
+        res.json({ message: 'Payment status updated', order });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Server error' });
+    }
+};
+
+// @desc    Update Order Status (Admin)
+// @route   PUT /api/orders/:id/status
+// @access  Private/Admin
+const updateOrderStatus = async (req, res) => {
+    try {
+        const orderId = req.params.id;
+        const { status } = req.body;
+
+        const allowedStatuses = ['Processing', 'Packed', 'Out for Delivery', 'Delivered', 'Cancelled', 'Awaiting Payment Confirmation'];
+        if (!allowedStatuses.includes(status)) {
+            return res.status(400).json({ error: `Invalid status. Allowed values: ${allowedStatuses.join(', ')}` });
+        }
+
+        const order = await Order.findByPk(orderId);
+        if (!order) {
+            return res.status(404).json({ error: 'Order not found' });
+        }
+
+        // Validation: Cannot cancel if already delivered
+        if (status === 'Cancelled' && order.status === 'Delivered') {
+            return res.status(400).json({ error: 'Cannot cancel an order that has already been delivered.' });
+        }
+
+        order.status = status;
+        await order.save();
+
+        res.json({ message: 'Order status updated', order });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Server error' });
+    }
+};
+
+// @desc    Rate an order (Admin) & Update Retailer Rating
+// @route   PUT /api/orders/:id/rate
+// @access  Private/Admin
+const rateOrder = async (req, res) => {
+    try {
+        const { rating, review } = req.body;
+        const orderId = req.params.id;
+
+        if (!rating || rating < 1 || rating > 5) {
+            return res.status(400).json({ error: 'Rating must be between 1 and 5' });
+        }
+
+        const order = await Order.findByPk(orderId);
+        if (!order) {
+            return res.status(404).json({ error: 'Order not found' });
+        }
+
+        // Update Order
+        order.rating = rating;
+        if (review) order.review = review;
+        await order.save();
+
+        // --- Aggregation Logic ---
+        // 1. Find all rated orders for this Retailer (User)
+        // Note: order.userId IS the retailer's User ID.
+        const retailerUserId = order.userId;
+
+        const result = await Order.findAll({
+            where: {
+                userId: retailerUserId,
+                rating: { [Op.ne]: null }
+            },
+            attributes: [
+                [sequelize.fn('AVG', sequelize.col('rating')), 'avgRating']
+            ],
+            raw: true
+        });
+
+        const avgRating = result[0].avgRating ? parseFloat(result[0].avgRating) : 0;
+
+        // 2. Update Retailer Table
+        // Need to find Retailer by UserId
+        const retailer = await Retailer.findOne({ where: { UserId: retailerUserId } });
+        if (retailer) {
+            // Round to 1 decimal place
+            retailer.rating = parseFloat(avgRating.toFixed(1));
+            await retailer.save();
+        }
+
+        res.json({
+            message: 'Order rated successfully',
+            orderRating: order.rating,
+            retailerNewRating: retailer ? retailer.rating : null
+        });
+
+    } catch (error) {
+        console.error('Rate Order Error:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+};
+
+module.exports = { getCheckoutSummary, placeOrder, getUserOrders, getAllOrders, uploadInvoice, getRetailerOrders, getOrderById, updatePaymentStatus, updateOrderStatus, rateOrder };

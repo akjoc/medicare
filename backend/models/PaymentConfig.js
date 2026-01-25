@@ -12,6 +12,7 @@ const PaymentConfig = sequelize.define('PaymentConfig', {
         type: DataTypes.BOOLEAN,
         defaultValue: true,
     },
+
     codNote: {
         type: DataTypes.STRING,
         allowNull: true,

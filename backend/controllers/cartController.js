@@ -1,4 +1,4 @@
-const { Cart, CartItem, Product, User } = require('../models/associations');
+const { Cart, CartItem, Product, User, Category } = require('../models/associations');
 
 // Get User's Cart
 const getCart = async (req, res) => {
@@ -12,6 +12,10 @@ const getCart = async (req, res) => {
                 include: [{
                     model: Product,
                     // attributes: ['id', 'name', 'price', 'imageUrl', 'stock', 'sku', 'salePrice', 'buyingPrice', 'companies', 'dosage', 'packing']
+                    include: [{
+                        model: Category,
+                        through: { attributes: [] } // Exclude junction table
+                    }]
                 }]
             }]
         });
@@ -129,18 +133,27 @@ const updateCartItem = async (req, res) => {
     }
 };
 
-// Remove Item
+// Remove Item (by Cart Item ID)
 const removeCartItem = async (req, res) => {
     try {
         const userId = req.user.id;
-        const { productId } = req.params;
+        const { itemId } = req.params; // Changed from productId to itemId
 
         const cart = await Cart.findOne({ where: { userId } });
         if (!cart) return res.status(404).json({ error: 'Cart not found' });
 
-        await CartItem.destroy({
-            where: { cartId: cart.id, productId }
+        // Delete using Cart Item ID (Primary Key)
+        // Ensure it belongs to the user's cart for security
+        const deletedCount = await CartItem.destroy({
+            where: {
+                id: itemId,
+                cartId: cart.id
+            }
         });
+
+        if (deletedCount === 0) {
+            return res.status(404).json({ error: 'Item not found in cart' });
+        }
 
         // Return updated cart
         const updatedCart = await Cart.findOne({
