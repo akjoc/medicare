@@ -2,10 +2,10 @@ const { Cart, CartItem, Product, User, Order, OrderItem, Coupon, AppSetting, Pay
 const { sequelize } = require('../config/database');
 
 // Helper to calc delivery fee (Mock logic or DB config)
+// Helper to calc delivery fee (Mock logic or DB config)
 const calculateDeliveryFee = async (subTotal, address) => {
-    // Example: Free if > 500, else 40
-    if (subTotal > 500) return 0;
-    return 40;
+    // Delivery is FREE for all
+    return 0;
 };
 
 const getValidCoupon = async (code, subTotal, validItems, userId) => {
