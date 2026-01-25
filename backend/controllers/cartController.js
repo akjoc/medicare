@@ -1,4 +1,4 @@
-const { Cart, CartItem, Product, User } = require('../models/associations');
+const { Cart, CartItem, Product, User, Category } = require('../models/associations');
 
 // Get User's Cart
 const getCart = async (req, res) => {
@@ -12,6 +12,10 @@ const getCart = async (req, res) => {
                 include: [{
                     model: Product,
                     // attributes: ['id', 'name', 'price', 'imageUrl', 'stock', 'sku', 'salePrice', 'buyingPrice', 'companies', 'dosage', 'packing']
+                    include: [{
+                        model: Category,
+                        through: { attributes: [] } // Exclude junction table
+                    }]
                 }]
             }]
         });
