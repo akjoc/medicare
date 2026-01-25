@@ -1,7 +1,20 @@
 const express = require('express');
 const router = express.Router();
 const { protect } = require('../middleware/authMiddleware');
-const { getCheckoutSummary, placeOrder, getUserOrders, getAllOrders } = require('../controllers/orderController');
+const { admin } = require('../middleware/adminMiddleware');
+const { uploadInvoice: uploadInvoiceMiddleware } = require('../config/fileUploadConfig');
+
+const {
+    getCheckoutSummary,
+    placeOrder,
+    getUserOrders,
+    getAllOrders,
+    getRetailerOrders,
+    getOrderById,
+    updatePaymentStatus,
+    updateOrderStatus,
+    uploadInvoice: uploadInvoiceController
+} = require('../controllers/orderController');
 
 // Calculate bill before placing order
 router.post('/checkout-summary', protect, getCheckoutSummary);
@@ -13,6 +26,21 @@ router.post('/place', protect, placeOrder);
 router.get('/', protect, getUserOrders);
 
 // Get All Orders (Admin)
-router.get('/all', protect, getAllOrders); // Add admin middleware if needed later
+router.get('/all', protect, getAllOrders);
+
+// Upload Invoice (Admin)
+router.post('/:id/invoice', protect, admin, uploadInvoiceMiddleware.single('invoice'), uploadInvoiceController);
+
+// Get Orders for specific Retailer (Admin)
+router.get('/retailer/:retailerId', protect, admin, getRetailerOrders);
+
+// Update Payment Status (Admin)
+router.put('/:id/payment-status', protect, admin, updatePaymentStatus);
+
+// Update Order Status (Admin)
+router.put('/:id/status', protect, admin, updateOrderStatus);
+
+// Get Order By ID (Must be last to avoid matching conflicts)
+router.get('/:id', protect, getOrderById);
 
 module.exports = router;

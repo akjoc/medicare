@@ -3,10 +3,15 @@ const Category = require('./category');
 const ProductCategory = require('./productCategory');
 const Retailer = require('./retailer');
 const User = require('./user');
+const Company = require('./company');
 
 // Product - Category Association (Many-to-Many)
 Product.belongsToMany(Category, { through: ProductCategory });
 Category.belongsToMany(Product, { through: ProductCategory });
+
+// Company - Product Association
+Company.hasMany(Product, { foreignKey: 'companyId' });
+Product.belongsTo(Company, { foreignKey: 'companyId' });
 
 // Existing Associations (Documenting here for clarity, though might be in models already)
 // Retailer - User
@@ -53,4 +58,4 @@ OrderItem.belongsTo(Order, { foreignKey: 'orderId' });
 Product.hasMany(OrderItem, { foreignKey: 'productId' });
 OrderItem.belongsTo(Product, { foreignKey: 'productId' });
 
-module.exports = { Product, Category, ProductCategory, Coupon, Cart, CartItem, User, Order, OrderItem, Retailer, PaymentConfig };
+module.exports = { Product, Category, ProductCategory, Coupon, Cart, CartItem, User, Order, OrderItem, Retailer, PaymentConfig, Company };
