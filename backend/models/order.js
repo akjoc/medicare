@@ -17,8 +17,8 @@ const Order = sequelize.define('Order', {
         onDelete: 'CASCADE'
     },
     status: {
-        type: DataTypes.ENUM('pending', 'confirmed', 'shipped', 'delivered', 'cancelled'),
-        defaultValue: 'pending',
+        type: DataTypes.ENUM('Processing', 'Packed', 'Out for Delivery', 'Delivered', 'Cancelled', 'Awaiting Payment Confirmation', 'pending'), // Keeping pending/Awaiting for safety during migration
+        defaultValue: 'Processing',
     },
     address: {
         type: DataTypes.TEXT, // Store full address as string or JSON
@@ -45,7 +45,7 @@ const Order = sequelize.define('Order', {
         allowNull: false,
     },
     paymentStatus: {
-        type: DataTypes.ENUM('pending', 'paid', 'failed'),
+        type: DataTypes.ENUM('pending', 'approved', 'rejected'),
         defaultValue: 'pending',
     },
     orderDate: {
@@ -71,6 +71,10 @@ const Order = sequelize.define('Order', {
     paymentDiscount: {
         type: DataTypes.FLOAT,
         defaultValue: 0
+    },
+    invoiceUrl: {
+        type: DataTypes.STRING,
+        allowNull: true
     }
 }, {
     timestamps: true

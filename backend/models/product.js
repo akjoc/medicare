@@ -34,6 +34,14 @@ const Product = sequelize.define('Product', {
         type: DataTypes.FLOAT,
         allowNull: true,
     },
+    companyId: {
+        type: DataTypes.INTEGER,
+        allowNull: true, // Allow null initially for migration
+        references: {
+            model: 'Companies', // Table name
+            key: 'id',
+        }
+    },
     companies: {
         type: DataTypes.JSON, // Array of strings
         defaultValue: [],
