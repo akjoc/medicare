@@ -41,7 +41,11 @@ const migrateCompanies = async () => {
 
             // Check if there is company data and it's an array with at least one item
             if (companyData && Array.isArray(companyData) && companyData.length > 0) {
-                const companyName = companyData[0].trim(); // Take the first company name
+                // Ensure it's a string
+                let rawName = companyData[0];
+                if (!rawName) continue; // Skip if null/undefined
+
+                const companyName = String(rawName).trim(); // Cast to string safe
 
                 if (companyName) {
                     // Find or Create Company
