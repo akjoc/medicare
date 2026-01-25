@@ -7,6 +7,8 @@ const retailerRoutes = require('./routes/retailerRoutes');
 const productRoutes = require('./routes/productRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
 const couponRoutes = require('./routes/couponRoutes');
+const cartRoutes = require('./routes/cartRoutes');
+const orderRoutes = require('./routes/orderRoutes');
 
 // Initialize Associations (Must be before routes use models if possible, or definitely before server starts)
 require('./models/associations');
@@ -24,6 +26,8 @@ app.use('/api/retailers', retailerRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/coupons', couponRoutes);
+app.use('/api/cart', cartRoutes);
+app.use('/api/orders', orderRoutes);
 const paymentConfigRoutes = require('./routes/paymentConfigRoutes');
 app.use('/api/payment-config', paymentConfigRoutes);
 const appSettingRoutes = require('./routes/appSettingRoutes');

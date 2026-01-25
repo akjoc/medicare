@@ -53,8 +53,8 @@ const createCoupon = async (req, res) => {
 const getAllCoupons = async (req, res) => {
     try {
         const { page = 1 } = req.query;
-        // const limit = 20;
-        const limit = 1;
+        const limit = 20;
+        // const limit = 1;
         const offset = (page - 1) * limit;
 
         const { count, rows } = await Coupon.findAndCountAll({
