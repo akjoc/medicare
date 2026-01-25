@@ -38,10 +38,9 @@ CartItem.belongsTo(Cart, { foreignKey: 'cartId' });
 Product.hasMany(CartItem, { foreignKey: 'productId', onDelete: 'CASCADE' });
 CartItem.belongsTo(Product, { foreignKey: 'productId' });
 
-// Order Associations
 const Order = require('./order');
 const OrderItem = require('./orderItem');
-const PaymentConfig = require('./paymentConfig');
+const PaymentConfig = require('./PaymentConfig');
 
 User.hasMany(Order, { foreignKey: 'userId' });
 Order.belongsTo(User, { foreignKey: 'userId' });
