@@ -44,6 +44,16 @@ const runMigration = async () => {
             console.log('Orders.rating exists.');
         }
 
+        if (!orderTable.invoiceUrl) {
+            console.log('Adding invoiceUrl to Orders...');
+            await queryInterface.addColumn('Orders', 'invoiceUrl', {
+                type: DataTypes.STRING,
+                allowNull: true
+            });
+        } else {
+            console.log('Orders.invoiceUrl exists.');
+        }
+
         if (!orderTable.review) {
             console.log('Adding review to Orders...');
             await queryInterface.addColumn('Orders', 'review', {
