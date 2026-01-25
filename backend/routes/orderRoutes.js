@@ -13,7 +13,8 @@ const {
     getOrderById,
     updatePaymentStatus,
     updateOrderStatus,
-    uploadInvoice: uploadInvoiceController
+    uploadInvoice: uploadInvoiceController,
+    rateOrder
 } = require('../controllers/orderController');
 
 // Calculate bill before placing order
@@ -39,6 +40,9 @@ router.put('/:id/payment-status', protect, admin, updatePaymentStatus);
 
 // Update Order Status (Admin)
 router.put('/:id/status', protect, admin, updateOrderStatus);
+
+// Rate Order (Admin)
+router.put('/:id/rate', protect, admin, rateOrder);
 
 // Get Order By ID (Must be last to avoid matching conflicts)
 router.get('/:id', protect, getOrderById);

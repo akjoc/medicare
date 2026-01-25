@@ -699,4 +699,65 @@ const updateOrderStatus = async (req, res) => {
     }
 };
 
-module.exports = { getCheckoutSummary, placeOrder, getUserOrders, getAllOrders, uploadInvoice, getRetailerOrders, getOrderById, updatePaymentStatus, updateOrderStatus };
+// @desc    Rate an order (Admin) & Update Retailer Rating
+// @route   PUT /api/orders/:id/rate
+// @access  Private/Admin
+const rateOrder = async (req, res) => {
+    try {
+        const { rating, review } = req.body;
+        const orderId = req.params.id;
+
+        if (!rating || rating < 1 || rating > 5) {
+            return res.status(400).json({ error: 'Rating must be between 1 and 5' });
+        }
+
+        const order = await Order.findByPk(orderId);
+        if (!order) {
+            return res.status(404).json({ error: 'Order not found' });
+        }
+
+        // Update Order
+        order.rating = rating;
+        if (review) order.review = review;
+        await order.save();
+
+        // --- Aggregation Logic ---
+        // 1. Find all rated orders for this Retailer (User)
+        // Note: order.userId IS the retailer's User ID.
+        const retailerUserId = order.userId;
+
+        const result = await Order.findAll({
+            where: {
+                userId: retailerUserId,
+                rating: { [Op.ne]: null }
+            },
+            attributes: [
+                [sequelize.fn('AVG', sequelize.col('rating')), 'avgRating']
+            ],
+            raw: true
+        });
+
+        const avgRating = result[0].avgRating ? parseFloat(result[0].avgRating) : 0;
+
+        // 2. Update Retailer Table
+        // Need to find Retailer by UserId
+        const retailer = await Retailer.findOne({ where: { UserId: retailerUserId } });
+        if (retailer) {
+            // Round to 1 decimal place
+            retailer.rating = parseFloat(avgRating.toFixed(1));
+            await retailer.save();
+        }
+
+        res.json({
+            message: 'Order rated successfully',
+            orderRating: order.rating,
+            retailerNewRating: retailer ? retailer.rating : null
+        });
+
+    } catch (error) {
+        console.error('Rate Order Error:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+};
+
+module.exports = { getCheckoutSummary, placeOrder, getUserOrders, getAllOrders, uploadInvoice, getRetailerOrders, getOrderById, updatePaymentStatus, updateOrderStatus, rateOrder };

@@ -75,6 +75,15 @@ const Order = sequelize.define('Order', {
     invoiceUrl: {
         type: DataTypes.STRING,
         allowNull: true
+    },
+    rating: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        validate: { min: 1, max: 5 }
+    },
+    review: {
+        type: DataTypes.TEXT,
+        allowNull: true
     }
 }, {
     timestamps: true

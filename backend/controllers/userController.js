@@ -1,4 +1,5 @@
 const User = require('../models/user');
+const Retailer = require('../models/retailer');
 const Blacklist = require('../models/blacklist');
 const jwt = require('jsonwebtoken');
 
@@ -54,8 +55,18 @@ const loginUser = async (req, res) => {
         const user = await User.findOne({ where: { email } });
 
         if (user && (await user.matchPassword(password))) {
+            let retailerId = null;
+
+            if (user.role === 'retailer') {
+                const retailer = await Retailer.findOne({ where: { UserId: user.id } });
+                if (retailer) {
+                    retailerId = retailer.id;
+                }
+            }
+
             res.json({
                 id: user.id,
+                retailerId: retailerId, // Include Retailer ID
                 name: user.name,
                 email: user.email,
                 role: user.role,
