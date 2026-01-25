@@ -58,5 +58,20 @@ export const CouponService = {
             console.error("Error deleting coupon:", error);
             throw error;
         }
+    },
+
+    applyCoupon: async (payload: {
+        code: string;
+        retailerId: string | number;
+        orderValue: number;
+        cartItems: { productId: number; quantity: number; categoryId: number[] }[];
+    }): Promise<{ success: boolean; code: string; discountAmount: number; type: "percent" | "flat"; value: number; message: string }> => {
+        try {
+            const response = await privateClient.post(ENDPOINTS.APPLY_COUPON, payload);
+            return response.data;
+        } catch (error) {
+            //console.error("Error applying coupon:", error);
+            throw error;
+        }
     }
 };

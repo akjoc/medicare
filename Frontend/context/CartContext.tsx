@@ -1,108 +1,190 @@
-import { APIProduct } from "@/types/api";
-import React, { createContext, useContext, useState } from "react";
+import { getUser } from "@/services/auth.service";
+import { cartService } from "@/services/cart.service";
+import { CouponService } from "@/services/coupon.service";
+import { APICartItem, APIProduct } from "@/types/api";
+import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { Alert } from "react-native";
 
-export interface CartItem {
-    product: APIProduct;
-    quantity: number;
+export type CartItem = APICartItem & { Product: APIProduct };
+
+export interface AppliedCoupon {
+    code: string;
+    discount: number; // Server-calculated discount amount
 }
 
 interface CartContextType {
     items: CartItem[];
-    addToCart: (product: APIProduct) => void;
-    removeFromCart: (productId: string) => void;
-    updateQuantity: (productId: string, quantity: number) => void;
-    clearCart: () => void;
-    getItemQuantity: (productId: string | number) => number;
+    isLoading: boolean;
+    appliedCoupon: AppliedCoupon | null;
+    addToCart: (productId: number, quantity?: number) => Promise<void>;
+    removeFromCart: (cartItemId: number) => Promise<void>;
+    updateQuantity: (productId: number, quantity: number) => Promise<void>;
+    clearCart: () => Promise<void>;
+    getItemQuantity: (productId: number) => number;
+    refreshCart: () => Promise<void>;
+    applyCoupon: (code: string) => Promise<void>;
+    removeCoupon: () => void;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useEffect } from "react";
-
-// ... existing imports
-
 export function CartProvider({ children }: { children: React.ReactNode }) {
     const [items, setItems] = useState<CartItem[]>([]);
-    const [isLoaded, setIsLoaded] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
+    const [appliedCoupon, setAppliedCoupon] = useState<AppliedCoupon | null>(null);
 
-    // Load cart from storage on mount
+    const refreshCart = async () => {
+        setIsLoading(true);
+        try {
+            const cart = await cartService.getCart();
+            setItems(cart.CartItems || []);
+        } catch (error) {
+            console.error("Failed to fetch cart", error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // Load cart on mount
     useEffect(() => {
-        const loadCart = async () => {
-            try {
-                const storedCart = await AsyncStorage.getItem("cart");
-                if (storedCart) {
-                    setItems(JSON.parse(storedCart));
-                }
-            } catch (error) {
-                console.error("Failed to load cart from storage", error);
-            } finally {
-                setIsLoaded(true);
-            }
-        };
-        loadCart();
+        refreshCart();
     }, []);
 
-    // Save cart to storage whenever it changes
-    useEffect(() => {
-        if (isLoaded) {
-            AsyncStorage.setItem("cart", JSON.stringify(items)).catch((error) =>
-                console.error("Failed to save cart to storage", error)
-            );
+    const validateAndApplyCoupon = useCallback(async (code: string, currentItems: CartItem[]) => {
+        try {
+            const user = await getUser();
+            if (!user) return;
+
+
+            const subtotal = currentItems.reduce((sum, item) => {
+                const price = Number(item.Product.price);
+                const salePrice = item.Product.salePrice ? Number(item.Product.salePrice) : 0;
+                const effectivePrice = salePrice > 0 ? salePrice : price;
+                return sum + effectivePrice * item.quantity;
+            }, 0);
+
+            const payload = {
+                code,
+                retailerId: user.retailerId,
+                orderValue: subtotal,
+                cartItems: currentItems.map(item => {
+                    // Extract category IDs from the Categories array provided by the backend
+                    let categoryIds: number[] = [];
+                    const product = item.Product as any;
+
+                    if (product.Categories && Array.isArray(product.Categories)) {
+                        categoryIds = product.Categories.map((cat: any) => Number(cat.id));
+                    } else if (product.CategoryId) {
+                        categoryIds = [Number(product.CategoryId)];
+                    } else if (product.Category?.id) {
+                        categoryIds = [Number(product.Category.id)];
+                    }
+
+                    return {
+                        productId: item.productId,
+                        quantity: item.quantity,
+                        categoryId: categoryIds
+                    };
+                })
+            };
+
+            const result = await CouponService.applyCoupon(payload);
+            setAppliedCoupon({
+                code,
+                discount: result.discountAmount // Always use the amount returned by backend
+            });
+            return true;
+        } catch (error: any) {
+            const errorMessage = error.response?.data?.error || "Coupon is no longer valid";
+            setAppliedCoupon(null);
+            Alert.alert("Coupon Removed", errorMessage);
+            return false;
         }
-    }, [items, isLoaded]);
+    }, []);
 
-    const addToCart = (product: APIProduct) => {
-        setItems((currentItems) => {
-            const existingItem = currentItems.find((item) => item.product.id === product.id);
-            if (existingItem) {
-                return currentItems.map((item) =>
-                    item.product.id === product.id
-                        ? { ...item, quantity: item.quantity + 1 }
-                        : item
-                );
+    const applyCoupon = async (code: string) => {
+        await validateAndApplyCoupon(code, items);
+    };
+
+    const removeCoupon = () => {
+        setAppliedCoupon(null);
+    };
+
+    const addToCart = async (productId: number, quantity: number = 1) => {
+        try {
+            await cartService.addToCart(productId, quantity);
+            const cart = await cartService.getCart();
+            const newItems = cart.CartItems || [];
+            setItems(newItems);
+
+            if (appliedCoupon) {
+                await validateAndApplyCoupon(appliedCoupon.code, newItems);
             }
-            return [...currentItems, { product, quantity: 1 }];
-        });
+        } catch (error: any) {
+            Alert.alert("Error", error.response?.data?.message || "Failed to add to cart");
+        }
     };
 
-    const removeFromCart = (productId: string) => {
-        // Convert to number for comparison since APIProduct id is number
-        const idNum = Number(productId);
-        setItems((currentItems) => currentItems.filter((item) => item.product.id !== idNum));
+    const removeFromCart = async (cartItemId: number) => {
+        try {
+            await cartService.removeItem(cartItemId.toString());
+            const cart = await cartService.getCart();
+            const newItems = cart.CartItems || [];
+            setItems(newItems);
+
+            if (appliedCoupon) {
+                await validateAndApplyCoupon(appliedCoupon.code, newItems);
+            }
+        } catch (error: any) {
+            Alert.alert("Error", error.response?.data?.message || "Failed to remove item");
+        }
     };
 
-    const updateQuantity = (productId: string, quantity: number) => {
-        const idNum = Number(productId);
+    const updateQuantity = async (productId: number, quantity: number) => {
         if (quantity < 1) {
-            removeFromCart(productId);
+            const item = items.find(i => i.productId === productId);
+            if (item) {
+                await removeFromCart(item.id);
+            }
             return;
         }
-        setItems((currentItems) =>
-            currentItems.map((item) =>
-                item.product.id === idNum ? { ...item, quantity } : item
-            )
-        );
+        try {
+            await cartService.updateCart(productId, quantity);
+            await refreshCart();
+            // Note: Per user request, we don't auto-validate coupon on quantity update
+        } catch (error: any) {
+            Alert.alert("Error", error.response?.data?.message || "Failed to update quantity");
+        }
     };
 
-    const clearCart = () => {
-        setItems([]);
+    const clearCart = async () => {
+        try {
+            await cartService.clearCart();
+            setItems([]);
+            setAppliedCoupon(null);
+        } catch (error: any) {
+            Alert.alert("Error", error.response?.data?.message || "Failed to clear cart");
+        }
     };
 
-    const getItemQuantity = (productId: string | number) => {
-        const idNum = Number(productId);
-        return items.find((item) => item.product.id === idNum)?.quantity || 0;
+    const getItemQuantity = (productId: number) => {
+        return items.find((item) => item.productId === productId)?.quantity || 0;
     };
 
     return (
         <CartContext.Provider
             value={{
                 items,
+                isLoading,
+                appliedCoupon,
                 addToCart,
                 removeFromCart,
                 updateQuantity,
                 clearCart,
                 getItemQuantity,
+                refreshCart,
+                applyCoupon,
+                removeCoupon,
             }}
         >
             {children}

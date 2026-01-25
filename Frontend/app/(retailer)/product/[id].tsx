@@ -71,20 +71,20 @@ export default function ProductDetailsScreen() {
     const isOutOfStock = product.stock <= 0;
 
     // Get current quantity
-    const quantity = getItemQuantity(product.id.toString());
+    const quantity = getItemQuantity(product.id);
 
     const handleAddToCart = () => {
-        addToCart(product);
+        addToCart(product.id);
     };
 
     const handleUpdateQuantity = (newQty: number) => {
-        updateQuantity(product.id.toString(), newQty);
+        updateQuantity(product.id, newQty);
     };
 
     const handleQuantityTextChange = (text: string) => {
         const qty = parseInt(text);
         if (!isNaN(qty)) {
-            updateQuantity(product.id.toString(), qty);
+            updateQuantity(product.id, qty);
         }
     };
 

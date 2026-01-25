@@ -11,6 +11,7 @@ import {
     Alert,
     Image,
     Linking,
+    Modal,
     ScrollView,
     StyleSheet,
     Text,
@@ -21,9 +22,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function CheckoutScreen() {
     const router = useRouter();
-    const { items, clearCart } = useCart();
+    const { items, clearCart, appliedCoupon } = useCart();
     const [loading, setLoading] = useState(false);
     const [paymentMethod, setPaymentMethod] = useState<"COD" | "PREPAID">("COD");
+    const [isQRModalVisible, setIsQRModalVisible] = useState(false);
 
     // Live Payment Configuration
     const [paymentConfig, setPaymentConfig] = useState<PaymentConfiguration | null>(null);
@@ -35,7 +37,7 @@ export default function CheckoutScreen() {
 
     const loadPaymentConfig = async () => {
         try {
-            const config = await PaymentService.getConfiguration();
+            const config = await PaymentService.getRetailerConfiguration();
             setPaymentConfig(config);
         } catch (error) {
             console.error("Failed to load payment config", error);
@@ -46,8 +48,8 @@ export default function CheckoutScreen() {
 
     const subtotal = items.reduce(
         (sum, item) => {
-            const price = Number(item.product.price);
-            const salePrice = item.product.salePrice ? Number(item.product.salePrice) : 0;
+            const price = Number(item.Product.price);
+            const salePrice = item.Product.salePrice ? Number(item.Product.salePrice) : 0;
             const effectivePrice = salePrice > 0 ? salePrice : price;
             return sum + effectivePrice * item.quantity;
         },
@@ -55,16 +57,18 @@ export default function CheckoutScreen() {
     );
 
     // Calculate Discount based on Payment Config
-    let discount = 0;
+    let prepaidDiscount = 0;
     if (paymentConfig?.discount.enabled && paymentMethod === "PREPAID") {
-        if (paymentConfig.discount.type === "PERCENTAGE") {
-            discount = (subtotal * paymentConfig.discount.value) / 100;
+        if (paymentConfig.discount.type === "PERCENT") {
+            prepaidDiscount = (subtotal * paymentConfig.discount.value) / 100;
         } else {
-            discount = paymentConfig.discount.value;
+            prepaidDiscount = paymentConfig.discount.value;
         }
     }
 
-    const totalAmount = Math.max(0, subtotal - discount);
+    const couponDiscount = appliedCoupon?.discount || 0;
+
+    const totalAmount = Math.max(0, subtotal - prepaidDiscount - couponDiscount);
 
     const handleAddressChange = () => {
         Alert.alert("Change Address", "Address management feature coming soon!");
@@ -89,7 +93,7 @@ export default function CheckoutScreen() {
     const handleAskForDiscount = () => {
         const message = `Hi, I would like to place an order from ${APP_CONFIG.NAME}.
 Here are the details:
-${items.map(item => `- ${item.product.name} (x${item.quantity})`).join("\n")}
+${items.map(item => `- ${item.Product.name} (x${item.quantity})`).join("\n")}
 
 Total Value: ₹${totalAmount}
 Payment Method: ${paymentMethod}
@@ -156,14 +160,14 @@ Can you offer any extra discount on this?`;
                 <View style={styles.card}>
                     <Text style={styles.cardTitle}>Order Items ({items.length})</Text>
                     {items.map((item, index) => (
-                        <View key={item.product.id}>
+                        <View key={item.id}>
                             {index > 0 && <View style={styles.itemDivider} />}
                             <View style={styles.orderItem}>
                                 <Text style={styles.orderItemName} numberOfLines={1}>
-                                    {item.quantity}x {item.product.name}
+                                    {item.quantity}x {item.Product.name}
                                 </Text>
                                 <Text style={styles.orderItemPrice}>
-                                    ₹{(item.product.salePrice ? Number(item.product.salePrice) : Number(item.product.price)) * item.quantity}
+                                    ₹{(item.Product.salePrice ? Number(item.Product.salePrice) : Number(item.Product.price)) * item.quantity}
                                 </Text>
                             </View>
                         </View>
@@ -181,10 +185,16 @@ Can you offer any extra discount on this?`;
                         <Text style={styles.billLabel}>Delivery Fee</Text>
                         <Text style={[styles.billValue, { color: '#059669' }]}>FREE</Text>
                     </View>
-                    {discount > 0 && paymentMethod === "PREPAID" && (
+                    {couponDiscount > 0 && (
+                        <View style={styles.billRow}>
+                            <Text style={[styles.billLabel, { color: '#059669' }]}>Coupon ({appliedCoupon?.code})</Text>
+                            <Text style={[styles.billValue, { color: '#059669' }]}>- ₹{couponDiscount.toFixed(2)}</Text>
+                        </View>
+                    )}
+                    {prepaidDiscount > 0 && paymentMethod === "PREPAID" && (
                         <View style={styles.billRow}>
                             <Text style={[styles.billLabel, { color: '#059669' }]}>Prepaid Discount</Text>
-                            <Text style={[styles.billValue, { color: '#059669' }]}>- ₹{discount}</Text>
+                            <Text style={[styles.billValue, { color: '#059669' }]}>- ₹{prepaidDiscount.toFixed(2)}</Text>
                         </View>
                     )}
                     <View style={[styles.billRow, { borderTopWidth: 1, borderTopColor: '#eee', paddingTop: 8, marginTop: 8 }]}>
@@ -204,7 +214,7 @@ Can you offer any extra discount on this?`;
                     <Text style={styles.cardTitle}>Payment Method</Text>
 
                     {/* COD Option */}
-                    {paymentConfig?.cod.enabled && (
+                    {paymentConfig?.codEnabled && (
                         <TouchableOpacity
                             style={[
                                 styles.paymentOption,
@@ -219,15 +229,15 @@ Can you offer any extra discount on this?`;
                             />
                             <View style={{ flex: 1, marginLeft: 12 }}>
                                 <Text style={styles.paymentText}>Cash on Delivery</Text>
-                                {paymentConfig.cod.note && (
-                                    <Text style={styles.paymentSubtext}>{paymentConfig.cod.note}</Text>
+                                {paymentConfig.codNote && (
+                                    <Text style={styles.paymentSubtext}>{paymentConfig.codNote}</Text>
                                 )}
                             </View>
                         </TouchableOpacity>
                     )}
 
                     {/* Prepaid Option */}
-                    {paymentConfig?.advance.enabled && (
+                    {paymentConfig?.advancePaymentEnabled && (
                         <>
                             <TouchableOpacity
                                 style={[
@@ -254,36 +264,44 @@ Can you offer any extra discount on this?`;
                             {/* Payment Details for Prepaid */}
                             {paymentMethod === "PREPAID" && (
                                 <View style={styles.prepaidDetails}>
-                                    {paymentConfig.advance.methods.upi.enabled && (
+                                    {paymentConfig.advancePaymentInstruction && (
+                                        <Text style={[styles.detailText, { marginBottom: 12, color: colors.primary, fontWeight: '500' }]}>
+                                            {paymentConfig.advancePaymentInstruction}
+                                        </Text>
+                                    )}
+
+                                    {paymentConfig.advancePaymentMethods.upiQr.enabled && (
                                         <View style={styles.methodDetail}>
                                             <Text style={styles.methodTitle}>UPI / QR Code</Text>
-                                            {paymentConfig.advance.methods.upi.config.qrCodeUrl && (
-                                                <Image
-                                                    source={{ uri: paymentConfig.advance.methods.upi.config.qrCodeUrl }}
-                                                    style={styles.qrImage}
-                                                    resizeMode="contain"
-                                                />
+                                            {paymentConfig.advancePaymentMethods.upiQr.qrCodeUrl && (
+                                                <TouchableOpacity onPress={() => setIsQRModalVisible(true)}>
+                                                    <Image
+                                                        source={{ uri: paymentConfig.advancePaymentMethods.upiQr.qrCodeUrl }}
+                                                        style={styles.qrImage}
+                                                        resizeMode="contain"
+                                                    />
+                                                </TouchableOpacity>
                                             )}
                                             <Text style={styles.detailText}>
-                                                UPI ID: {paymentConfig.advance.methods.upi.config.upiId}
+                                                UPI ID: {paymentConfig.advancePaymentMethods.upiQr.upiId}
                                             </Text>
                                         </View>
                                     )}
 
-                                    {paymentConfig.advance.methods.bankTransfer.enabled && (
+                                    {paymentConfig.advancePaymentMethods.bankTransfer.enabled && (
                                         <View style={[styles.methodDetail, { marginTop: 12 }]}>
                                             <Text style={styles.methodTitle}>Bank Transfer</Text>
                                             <Text style={styles.detailText}>
-                                                Bank: {paymentConfig.advance.methods.bankTransfer.config.bankName}
+                                                Bank: {paymentConfig.advancePaymentMethods.bankTransfer.bankName}
                                             </Text>
                                             <Text style={styles.detailText}>
-                                                Acc No: {paymentConfig.advance.methods.bankTransfer.config.accountNumber}
+                                                Acc No: {paymentConfig.advancePaymentMethods.bankTransfer.accountNumber}
                                             </Text>
                                             <Text style={styles.detailText}>
-                                                IFSC: {paymentConfig.advance.methods.bankTransfer.config.ifscCode}
+                                                IFSC: {paymentConfig.advancePaymentMethods.bankTransfer.ifscCode}
                                             </Text>
                                             <Text style={styles.detailText}>
-                                                Holder: {paymentConfig.advance.methods.bankTransfer.config.accountHolderName}
+                                                Holder: {paymentConfig.advancePaymentMethods.bankTransfer.accountHolderName}
                                             </Text>
                                         </View>
                                     )}
@@ -315,6 +333,42 @@ Can you offer any extra discount on this?`;
                     )}
                 </TouchableOpacity>
             </View>
+
+            {/* Full Page QR Modal */}
+            <Modal
+                visible={isQRModalVisible}
+                transparent={false}
+                animationType="fade"
+                onRequestClose={() => setIsQRModalVisible(false)}
+            >
+                <SafeAreaView style={styles.modalContainer}>
+                    <View style={styles.modalHeader}>
+                        <Text style={styles.modalTitle}>Scan to Pay</Text>
+                        <TouchableOpacity
+                            onPress={() => setIsQRModalVisible(false)}
+                            style={styles.closeButton}
+                        >
+                            <Ionicons name="close" size={32} color={colors.textDark} />
+                        </TouchableOpacity>
+                    </View>
+
+                    <View style={styles.modalContent}>
+                        {paymentConfig?.advancePaymentMethods.upiQr.qrCodeUrl && (
+                            <Image
+                                source={{ uri: paymentConfig.advancePaymentMethods.upiQr.qrCodeUrl }}
+                                style={styles.fullQrImage}
+                                resizeMode="contain"
+                            />
+                        )}
+                        <Text style={styles.modalUpiId}>
+                            UPI ID: {paymentConfig?.advancePaymentMethods.upiQr.upiId}
+                        </Text>
+                        <Text style={styles.modalInstructions}>
+                            Scan this QR code using any UPI app to make the payment.
+                        </Text>
+                    </View>
+                </SafeAreaView>
+            </Modal>
         </View>
     );
 }
@@ -557,5 +611,51 @@ const styles = StyleSheet.create({
     backButtonText: {
         color: colors.textDark,
         fontWeight: "600",
+    },
+
+    // Modal Styles
+    modalContainer: {
+        flex: 1,
+        backgroundColor: colors.white,
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 20,
+        paddingVertical: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.border,
+    },
+    modalTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: colors.textDark,
+    },
+    closeButton: {
+        padding: 4,
+    },
+    modalContent: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 24,
+    },
+    fullQrImage: {
+        width: '100%',
+        height: '70%',
+        marginBottom: 24,
+    },
+    modalUpiId: {
+        fontSize: 18,
+        fontWeight: '600',
+        color: colors.textDark,
+        marginBottom: 8,
+    },
+    modalInstructions: {
+        fontSize: 14,
+        color: colors.textLight,
+        textAlign: 'center',
+        lineHeight: 20,
     },
 });

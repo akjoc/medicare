@@ -14,6 +14,16 @@ export const PaymentService = {
         }
     },
 
+    getRetailerConfiguration: async (): Promise<PaymentConfiguration> => {
+        try {
+            const response = await privateClient.get(ENDPOINTS.GET_PAYMENT_CONFIG_RETAILER);
+            return response.data;
+        } catch (error) {
+            console.error("Error fetching retailer payment config:", error);
+            throw error;
+        }
+    },
+
     updateConfiguration: async (config: Partial<PaymentConfiguration>, qrCodeFile?: any): Promise<PaymentConfiguration> => {
         try {
             const formData = new FormData();

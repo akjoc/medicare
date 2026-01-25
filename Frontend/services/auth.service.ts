@@ -4,6 +4,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export interface User {
   id: number;
+  retailerId: number;
   name: string;
   email: string;
   role: "admin" | "retailer";

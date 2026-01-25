@@ -21,17 +21,17 @@ export default function ProductCard({ product, onPress }: ProductCardProps) {
     const discount = salePrice > 0 ? Math.round(((price - salePrice) / price) * 100) : 0;
 
     const handleAddToCart = () => {
-        addToCart(product);
+        addToCart(product.id);
     };
 
     const handleUpdateQuantity = (newQty: number) => {
-        updateQuantity(product.id.toString(), newQty);
+        updateQuantity(product.id, newQty);
     };
 
     const handleQuantityTextChange = (text: string) => {
         const qty = parseInt(text);
         if (!isNaN(qty)) {
-            updateQuantity(product.id.toString(), qty);
+            updateQuantity(product.id, qty);
         } else if (text === "") {
             // Optional: Handle empty input if needed, but safer to do nothing or set to 0
         }

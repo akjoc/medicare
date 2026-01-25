@@ -28,7 +28,23 @@ export const ENDPOINTS = {
     UPDATE_COUPON: (id: string) => `/coupons/${id}`,
     TOGGLE_COUPON_STATUS: (id: string) => `/coupons/${id}/status`,
     DELETE_COUPON: (id: string) => `/coupons/${id}`,
+    APPLY_COUPON: "/coupons/apply",
     // Payment Configuration
     GET_PAYMENT_CONFIG: "/payment-config",
     UPDATE_PAYMENT_CONFIG: "/payment-config",
+    GET_PAYMENT_CONFIG_RETAILER: "/payment-config/retailer",
+    //Cart functionality
+    ADD_TO_CART: "/cart/add",
+    GET_CART: "/cart",
+    UPDATE_CART: "/cart/update",
+    REMOVE_SPECIFIC_ITEM_FROM_CART: (id: string) => `/cart/remove/${id}`,
+    CLEAR_CART: "/cart/clear",
+    //Order functionality
+    CREATE_ORDER: "/orders/place",
+    GET_ALL_ORDERS: "/orders/all",
+    GET_USER_ORDERS: "/orders",
+    GET_ORDER_BY_ID: (id: string) => `/orders/${id}`,
+    UPDATE_ORDER_STATUS: (id: string) => `/orders/${id}/status`,
+    UPLOAD_ORDER_INVOICE: (id: string) => `/orders/${id}/invoice`,
+    UPDATE_PAYMENT_STATUS: (id: string) => `/orders/${id}/payment-status`,
 } as const;

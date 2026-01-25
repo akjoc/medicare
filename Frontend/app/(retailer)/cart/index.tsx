@@ -5,71 +5,52 @@ import { colors } from "@/styles/colors";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
-import { FlatList, Image, Linking, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, FlatList, Image, Linking, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-// Mock Coupon Data
-const MOCK_COUPONS: Record<string, number> = {
-    "SAVE10": 10,      // Flat 10 off
-    "WELCOME20": 20,   // Flat 20 off
-    "MED50": 50,       // Flat 50 off
-};
 
 export default function CartScreen() {
-    const { items, updateQuantity, removeFromCart, clearCart } = useCart();
+    const { items, isLoading, appliedCoupon, updateQuantity, removeFromCart, clearCart, applyCoupon, removeCoupon } = useCart();
     const router = useRouter();
 
-    // Local state for coupon management
+    // Local state for coupon input
     const [showCouponInput, setShowCouponInput] = useState(false);
     const [couponCode, setCouponCode] = useState("");
     const [couponError, setCouponError] = useState("");
-    const [appliedDiscount, setAppliedDiscount] = useState(0);
-    const [appliedCouponCode, setAppliedCouponCode] = useState("");
 
     const subtotal = items.reduce(
         (sum, item) => {
-            const price = Number(item.product.price);
-            const salePrice = item.product.salePrice ? Number(item.product.salePrice) : 0;
+            const price = Number(item.Product.price);
+            const salePrice = item.Product.salePrice ? Number(item.Product.salePrice) : 0;
             const effectivePrice = salePrice > 0 ? salePrice : price;
             return sum + effectivePrice * item.quantity;
         },
         0
     );
 
-    const totalAmount = Math.max(0, subtotal - appliedDiscount);
+    const couponDiscount = appliedCoupon?.discount || 0;
+    const totalAmount = Math.max(0, subtotal - couponDiscount);
 
-    const handleApplyCoupon = () => {
-        setCouponError(""); // Reset error
-        const code = couponCode.trim().toUpperCase();
+    const handleApplyCoupon = async () => {
+        setCouponError("");
+        const code = couponCode.trim();
 
         if (!code) {
             setCouponError("Please enter a coupon code");
             return;
         }
 
-        if (MOCK_COUPONS.hasOwnProperty(code)) {
-            const discount = MOCK_COUPONS[code];
-
-            // Basic validation: Check if discount is not greater than subtotal (optional, but good practice)
-            if (discount > subtotal) {
-                setCouponError("Coupon value exceeds cart total");
-                return;
-            }
-
-            setAppliedDiscount(discount);
-            setAppliedCouponCode(code);
-            setShowCouponInput(false); // Hide input after successful application
-            setCouponCode(""); // Clear input
-        } else {
-            setAppliedDiscount(0);
-            setAppliedCouponCode("");
-            setCouponError("Invalid coupon code");
+        try {
+            await applyCoupon(code);
+            setShowCouponInput(false);
+            setCouponCode("");
+        } catch (error: any) {
+            setCouponError(error.response?.data?.message || "Invalid coupon code");
         }
     };
 
     const handleRemoveCoupon = () => {
-        setAppliedDiscount(0);
-        setAppliedCouponCode("");
+        removeCoupon();
         setCouponError("");
     };
 
@@ -82,7 +63,7 @@ export default function CartScreen() {
 Total Value: ₹${totalAmount}
 
 Items:
-${items.map(item => `- ${item.product.name} (Qty: ${item.quantity})`).join('\n')}`;
+${items.map(item => `- ${item.Product.name} (Qty: ${item.quantity})`).join('\n')}`;
 
         const url = `whatsapp://send?phone=${APP_CONFIG.WHATSAPP_NUMBER}&text=${encodeURIComponent(message)}`;
 
@@ -92,7 +73,7 @@ ${items.map(item => `- ${item.product.name} (Qty: ${item.quantity})`).join('\n')
     };
 
     const renderCartItem = ({ item }: { item: CartItem }) => {
-        const product = item.product;
+        const product = item.Product;
         // Parse prices to ensure math works
         const price = Number(product.price);
         const salePrice = product.salePrice ? Number(product.salePrice) : 0;
@@ -127,12 +108,12 @@ ${items.map(item => `- ${item.product.name} (Qty: ${item.quantity})`).join('\n')
                 <View style={styles.actionsContainer}>
                     <QuantitySelector
                         quantity={item.quantity}
-                        onIncrease={() => updateQuantity(product.id.toString(), item.quantity + 1)}
-                        onDecrease={() => updateQuantity(product.id.toString(), item.quantity - 1)}
+                        onIncrease={() => updateQuantity(product.id, item.quantity + 1)}
+                        onDecrease={() => updateQuantity(product.id, item.quantity - 1)}
                         onChangeText={(text) => {
                             const qty = parseInt(text);
                             if (!isNaN(qty)) {
-                                updateQuantity(product.id.toString(), qty);
+                                updateQuantity(product.id, qty);
                             }
                         }}
                     />
@@ -140,6 +121,14 @@ ${items.map(item => `- ${item.product.name} (Qty: ${item.quantity})`).join('\n')
             </View>
         );
     };
+
+    if (isLoading && items.length === 0) {
+        return (
+            <View style={styles.emptyContainer}>
+                <ActivityIndicator size="large" color={colors.primary} />
+            </View>
+        );
+    }
 
     if (items.length === 0) {
         return (
@@ -170,7 +159,7 @@ ${items.map(item => `- ${item.product.name} (Qty: ${item.quantity})`).join('\n')
             <View style={{ flex: 1 }}>
                 <FlatList
                     data={items}
-                    keyExtractor={(item) => item.product.id.toString()}
+                    keyExtractor={(item) => item.id.toString()}
                     renderItem={renderCartItem}
                     contentContainerStyle={styles.listContent}
                     showsVerticalScrollIndicator={false}
@@ -178,12 +167,12 @@ ${items.map(item => `- ${item.product.name} (Qty: ${item.quantity})`).join('\n')
                         <View style={{ paddingBottom: 20 }}>
                             {/* Coupon Section */}
                             <View style={styles.couponSection}>
-                                {appliedCouponCode ? (
+                                {appliedCoupon ? (
                                     <View style={styles.appliedCouponContainer}>
                                         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                                             <Ionicons name="pricetag" size={20} color="#059669" />
                                             <Text style={styles.appliedCouponText}>
-                                                Code <Text style={{ fontWeight: 'bold' }}>{appliedCouponCode}</Text> applied
+                                                Code <Text style={{ fontWeight: 'bold' }}>{appliedCoupon.code}</Text> applied
                                             </Text>
                                         </View>
                                         <TouchableOpacity onPress={handleRemoveCoupon}>
@@ -245,10 +234,12 @@ ${items.map(item => `- ${item.product.name} (Qty: ${item.quantity})`).join('\n')
                                     <Text style={styles.billLabel}>Item Total</Text>
                                     <Text style={styles.billValue}>₹{subtotal}</Text>
                                 </View>
-                                {appliedDiscount > 0 && (
+                                {appliedCoupon && (
                                     <View style={styles.billRow}>
-                                        <Text style={[styles.billLabel, { color: '#059669' }]}>Coupon Discount</Text>
-                                        <Text style={[styles.billValue, { color: '#059669' }]}>- ₹{appliedDiscount}</Text>
+                                        <Text style={[styles.billLabel, { color: '#059669' }]}>
+                                            Coupon Discount
+                                        </Text>
+                                        <Text style={[styles.billValue, { color: '#059669' }]}>- ₹{appliedCoupon.discount.toFixed(2)}</Text>
                                     </View>
                                 )}
                                 <View style={[styles.billRow, { borderTopWidth: 1, borderTopColor: '#eee', paddingTop: 8, marginTop: 8 }]}>

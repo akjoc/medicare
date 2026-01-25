@@ -28,3 +28,21 @@ export interface APICategory {
     productCount?: number;
     subCategories?: APICategory[]; // For nested structure
 }
+export interface APICartItem {
+    id: number;
+    cartId: number;
+    productId: number;
+    quantity: number;
+    createdAt: string;
+    updatedAt: string;
+    Product: APIProduct;
+}
+
+export interface APICart {
+    id: number;
+    status: string;
+    userId: number;
+    createdAt: string;
+    updatedAt: string;
+    CartItems: APICartItem[];
+}

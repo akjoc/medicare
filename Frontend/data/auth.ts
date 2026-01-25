@@ -7,6 +7,7 @@ export type UserRole = "admin" | "retailer";
 
 export interface MockUser {
   id: number;
+  retailerId: number;
   name: string;
   role: UserRole;
   email: string;
