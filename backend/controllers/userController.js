@@ -55,23 +55,56 @@ const loginUser = async (req, res) => {
         const user = await User.findOne({ where: { email } });
 
         if (user && (await user.matchPassword(password))) {
-            let retailerId = null;
+            let responseData = {
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                token: generateToken(user.id),
+                ...user.get({ plain: true }) // Include all user fields
+            };
+
+            // Remove sensitive data
+            delete responseData.password;
+
+            // Ensure token is not overwritten/deleted if user model has 'token' field (unlikely but safe)
+            responseData.token = generateToken(user.id);
 
             if (user.role === 'retailer') {
                 const retailer = await Retailer.findOne({ where: { UserId: user.id } });
                 if (retailer) {
-                    retailerId = retailer.id;
+                    const retailerData = retailer.get({ plain: true });
+                    // Merge retailer data, but avoid overwriting user id/email if possible, or just standard spread
+                    responseData = { ...responseData, ...retailerData, id: user.id, email: user.email }; // Ensure critical user fields take precedence or use separate object? 
+                    // User requested "give retailer name, shop name etc all data". 
+                    // Merging at top level is requested.
+                    // Note: Retailer has 'id' too. This might overwrite User 'id' if not careful.
+                    // Let's keep User ID as 'userId' or 'id'? 
+                    // Usually better to nest, but user asked for "whole data". 
+                    // Let's add specific fields to avoid ID collision or explicit "retailerDetails" object?
+                    // "if retailer is logged in then give retailer name, shop name etc all data"
+                    // I will provide a merged structure but explicit about IDs.
+
+                    responseData = {
+                        ...responseData,
+                        retailerId: retailer.id,
+                        shopName: retailer.shopName,
+                        ownerName: retailer.ownerName,
+                        phone: retailer.phone,
+                        address: retailer.address,
+                        city: retailer.city,
+                        state: retailer.state,
+                        zipCode: retailer.zipCode,
+                        drugLicenseNumber: retailer.drugLicenseNumber,
+                        gst: retailer.gst,
+                        rating: retailer.rating,
+                        status: retailer.status,
+                        isActive: retailer.isActive
+                    };
                 }
             }
 
-            res.json({
-                id: user.id,
-                retailerId: retailerId, // Include Retailer ID
-                name: user.name,
-                email: user.email,
-                role: user.role,
-                token: generateToken(user.id)
-            });
+            res.json(responseData);
         } else {
             res.status(401).json({ error: 'Invalid email or password' });
         }
