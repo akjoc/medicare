@@ -1,10 +1,10 @@
 import { privateClient } from '@/api/client';
 import { ENDPOINTS } from '@/api/endpoint';
-import { PaymentConfiguration } from '@/data/paymentMethods';
+import { AdminPaymentConfiguration, RetailerPaymentConfiguration } from '@/data/paymentMethods';
 import { Platform } from 'react-native';
 
 export const PaymentService = {
-    getConfiguration: async (): Promise<PaymentConfiguration> => {
+    getConfiguration: async (): Promise<AdminPaymentConfiguration> => {
         try {
             const response = await privateClient.get(ENDPOINTS.GET_PAYMENT_CONFIG);
             return response.data;
@@ -14,7 +14,7 @@ export const PaymentService = {
         }
     },
 
-    getRetailerConfiguration: async (): Promise<PaymentConfiguration> => {
+    getRetailerConfiguration: async (): Promise<RetailerPaymentConfiguration> => {
         try {
             const response = await privateClient.get(ENDPOINTS.GET_PAYMENT_CONFIG_RETAILER);
             return response.data;
@@ -24,7 +24,7 @@ export const PaymentService = {
         }
     },
 
-    updateConfiguration: async (config: Partial<PaymentConfiguration>, qrCodeFile?: any): Promise<PaymentConfiguration> => {
+    updateConfiguration: async (config: Partial<AdminPaymentConfiguration>, qrCodeFile?: any): Promise<AdminPaymentConfiguration> => {
         try {
             const formData = new FormData();
 

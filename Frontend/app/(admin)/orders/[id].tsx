@@ -1,8 +1,11 @@
-import { MOCK_ORDERS, Order, OrderStatus } from "@/data/mockOrders";
+import { OrderService } from "@/services/order.service";
+import { colors } from "@/styles/colors";
 import { Feather as Icon } from "@expo/vector-icons";
+import * as DocumentPicker from "expo-document-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
+    ActivityIndicator,
     Alert,
     Linking,
     ScrollView,
@@ -12,41 +15,147 @@ import {
     View,
 } from "react-native";
 
+interface AdminOrderDetail {
+    id: number;
+    userId: number;
+    status: string;
+    address: string;
+    totalAmount: number;
+    subTotal: number;
+    discount: number;
+    deliveryFee: number;
+    paymentMethod: string;
+    paymentStatus: string;
+    orderDate: string;
+    retailerName: string;
+    shopName: string;
+    couponCode: string | null;
+    couponDiscount: number;
+    paymentDiscount: number;
+    invoiceUrl: string | null;
+    rating: number | null;
+    review: string | null;
+    createdAt: string;
+    updatedAt: string;
+    User: {
+        id: number;
+        name: string;
+        email: string;
+    };
+    OrderItems: Array<{
+        id: number;
+        quantity: number;
+        price: number;
+        productId: number;
+        Product: {
+            id: number;
+            name: string;
+        };
+    }>;
+}
 
-const STATUS_COLORS: Record<OrderStatus, string> = {
-    "Awaiting Payment Confirmation": "#F59E0B",
-    Processing: "#3B82F6",
-    Packed: "#8B5CF6",
+const STATUS_COLORS: Record<string, string> = {
+    "pending": "#F59E0B",
+    "Processing": "#3B82F6",
+    "Packed": "#8B5CF6",
     "Out for Delivery": "#F97316",
-    Delivered: "#10B981",
-    Cancelled: "#EF4444",
+    "Delivered": "#10B981",
+    "Cancelled": "#EF4444",
+    "Awaiting Payment Confirmation": "#F59E0B",
 };
 
 export default function OrderDetailsScreen() {
     const { id } = useLocalSearchParams();
     const router = useRouter();
-    const [order, setOrder] = useState<Order | null>(null);
+    const [order, setOrder] = useState<AdminOrderDetail | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [uploading, setUploading] = useState(false);
 
-    // Load order
-    useEffect(() => {
-        const foundOrder = MOCK_ORDERS.find((o) => o.id === id);
-        if (foundOrder) {
-            setOrder({ ...foundOrder });
+    const fetchOrderDetails = useCallback(async () => {
+        try {
+            const data = await OrderService.getOrderById(id as string);
+            setOrder(data);
+        } catch (error) {
+            console.error("Failed to fetch order details:", error);
+            Alert.alert("Error", "Failed to load order details.");
+        } finally {
+            setLoading(false);
         }
     }, [id]);
 
-    const handleUpdateStatus = (newStatus: OrderStatus) => {
-        if (!order) return;
-
-        // In a real app, this would be an API call
-        // For now, we update the mock data reference and local state
-        const mockOrderIndex = MOCK_ORDERS.findIndex(o => o.id === order.id);
-        if (mockOrderIndex !== -1) {
-            MOCK_ORDERS[mockOrderIndex].status = newStatus;
+    useEffect(() => {
+        if (id) {
+            fetchOrderDetails();
         }
+    }, [id, fetchOrderDetails]);
 
-        setOrder({ ...order, status: newStatus });
-        Alert.alert("Success", `Order status updated to ${newStatus}`);
+    const handleUpdateStatus = async (newStatus: string) => {
+        if (!order) return;
+        try {
+            setLoading(true);
+            await OrderService.updateOrderStatus(order.id.toString(), newStatus);
+            Alert.alert("Success", `Order status updated to ${newStatus}`);
+            await fetchOrderDetails();
+        } catch (error) {
+            console.error("Failed to update status:", error);
+            Alert.alert("Error", "Failed to update status.");
+            setLoading(false);
+        }
+    };
+
+    const handleUploadInvoice = async () => {
+        try {
+            const result = await DocumentPicker.getDocumentAsync({
+                type: "application/pdf",
+            });
+
+            if (result.canceled) return;
+
+            const file = result.assets[0];
+
+            // Only allow PDF
+            if (file.mimeType !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+                Alert.alert("Error", "Only PDF files are allowed.");
+                return;
+            }
+
+            // 2MB limit check
+            if (file.size && file.size > 2 * 1024 * 1024) {
+                Alert.alert("Error", "File size must be less than 2MB");
+                return;
+            }
+
+            setUploading(true);
+            const fileData = {
+                uri: file.uri,
+                name: file.name,
+                type: file.mimeType || "application/octet-stream",
+            };
+
+            await OrderService.uploadInvoice(order!.id.toString(), fileData);
+            Alert.alert("Success", "Invoice uploaded successfully!");
+            fetchOrderDetails();
+        } catch (error) {
+            console.error("Upload failed", error);
+            Alert.alert("Error", "Failed to upload invoice.");
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    const handleUpdatePaymentStatus = async (status: 'approved' | 'rejected') => {
+        if (!order) return;
+        try {
+            setLoading(true);
+            await OrderService.updatePaymentStatus(order.id.toString(), status);
+            Alert.alert("Success", `Payment ${status} successfully.`);
+            await fetchOrderDetails();
+        } catch (error) {
+            console.log("akkkkk", error);
+            console.error(`Failed to ${status} payment:`, error);
+            Alert.alert("Error", `Failed to ${status} payment.`);
+            setLoading(false);
+        }
     };
 
     const handleApprovePayment = () => {
@@ -57,11 +166,50 @@ export default function OrderDetailsScreen() {
                 { text: "Cancel", style: "cancel" },
                 {
                     text: "Approve",
-                    onPress: () => handleUpdateStatus("Processing")
+                    onPress: () => handleUpdatePaymentStatus("approved")
                 }
             ]
         );
     };
+
+    const handleRateOrder = async (rating: number) => {
+        if (!order) return;
+        try {
+            setLoading(true);
+            await OrderService.rateOrder(order.id.toString(), rating);
+            Alert.alert("Success", "Rating submitted successfully.");
+            await fetchOrderDetails();
+        } catch (error) {
+            console.error("Failed to rate order:", error);
+            Alert.alert("Error", "Failed to submit rating.");
+            setLoading(false);
+        }
+    };
+
+    const handleRejectPayment = () => {
+        Alert.alert(
+            "Reject Payment",
+            "Are you sure you want to reject this payment?",
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Reject",
+                    style: "destructive",
+                    onPress: () => handleUpdatePaymentStatus("rejected")
+                }
+            ]
+        );
+    };
+
+    if (loading) {
+        return (
+            <View style={styles.container}>
+                <View style={[styles.centerContainer, { paddingTop: 100 }]}>
+                    <ActivityIndicator size="large" color={colors.primary} />
+                </View>
+            </View>
+        );
+    }
 
     if (!order) {
         return (
@@ -76,20 +224,19 @@ export default function OrderDetailsScreen() {
         );
     }
 
-    const getStatusIconName = (status: OrderStatus) => {
-        switch (status) {
-            case "Awaiting Payment Confirmation": return "alert-circle";
-            case "Processing": return "check-circle"; // Using check-circle
-            case "Packed": return "package";
-            case "Out for Delivery": return "truck";
-            case "Delivered": return "check-circle";
-            case "Cancelled": return "x-circle";
-            default: return "help-circle";
-        }
+    const getStatusIconName = (status: string) => {
+        const s = status.toLowerCase();
+        if (s.includes("pending")) return "alert-circle";
+        if (s.includes("processing")) return "check-circle";
+        if (s.includes("packed")) return "package";
+        if (s.includes("delivery")) return "truck";
+        if (s.includes("delivered")) return "check-circle";
+        if (s.includes("cancelled")) return "x-circle";
+        return "help-circle";
     };
 
     const isAdvancePayment = order.paymentMethod !== "COD";
-    const needsApproval = order.status === "Awaiting Payment Confirmation";
+    const needsApproval = order.status === "Awaiting Payment Confirmation" || order.status === "pending";
 
     return (
         <View style={styles.container}>
@@ -99,9 +246,9 @@ export default function OrderDetailsScreen() {
                     <Icon name="arrow-left" size={24} color="#0F172A" />
                 </TouchableOpacity>
                 <Text style={styles.title}>Order #{order.id}</Text>
-                <View style={[styles.statusBadge, { backgroundColor: STATUS_COLORS[order.status] + "20" }]}>
-                    <Icon name={getStatusIconName(order.status) as any} size={14} color={STATUS_COLORS[order.status]} />
-                    <Text style={[styles.statusText, { color: STATUS_COLORS[order.status] }]}>
+                <View style={[styles.statusBadge, { backgroundColor: (STATUS_COLORS[order.status] || colors.textLight) + "20" }]}>
+                    <Icon name={getStatusIconName(order.status) as any} size={14} color={STATUS_COLORS[order.status] || colors.textLight} />
+                    <Text style={[styles.statusText, { color: STATUS_COLORS[order.status] || colors.textLight }]}>
                         {order.status}
                     </Text>
                 </View>
@@ -109,7 +256,7 @@ export default function OrderDetailsScreen() {
 
             <ScrollView contentContainerStyle={styles.scrollContent}>
 
-                {/* Actions Card (Top Priority) */}
+                {/* Actions Card */}
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>Actions</Text>
                     <View style={styles.actionGrid}>
@@ -124,7 +271,7 @@ export default function OrderDetailsScreen() {
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     style={[styles.actionButton, styles.rejectButton]}
-                                    onPress={() => Alert.alert("Reject", "Reject functionality not implemented in mock")}
+                                    onPress={handleRejectPayment}
                                 >
                                     <Icon name="x-circle" size={20} color="#EF4444" />
                                     <Text style={[styles.actionButtonText, { color: "#EF4444" }]}>Reject</Text>
@@ -174,56 +321,75 @@ export default function OrderDetailsScreen() {
                     </View>
                 </View>
 
+                {/* Invoice Section */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Invoice Management</Text>
+                    <View style={styles.card}>
+                        {order.invoiceUrl ? (
+                            <View style={styles.invoiceDisplay}>
+                                <View style={styles.invoiceInfo}>
+                                    <Icon name="file-text" size={24} color={colors.primary} />
+                                    <View style={{ marginLeft: 12 }}>
+                                        <Text style={styles.invoiceName}>Order Invoice</Text>
+                                        <Text style={styles.invoiceStatus}>Uploaded</Text>
+                                    </View>
+                                </View>
+                                <TouchableOpacity
+                                    style={styles.viewInvoiceBtn}
+                                    onPress={() => Linking.openURL(order.invoiceUrl!)}
+                                >
+                                    <Text style={styles.viewInvoiceText}>View</Text>
+                                </TouchableOpacity>
+                            </View>
+                        ) : (
+                            <Text style={styles.noInvoiceText}>No invoice uploaded yet.</Text>
+                        )}
+
+                        <TouchableOpacity
+                            style={[styles.uploadBtn, uploading && styles.disabledBtn]}
+                            onPress={handleUploadInvoice}
+                            disabled={uploading}
+                        >
+                            {uploading ? (
+                                <ActivityIndicator size="small" color={colors.white} />
+                            ) : (
+                                <>
+                                    <Icon name="upload" size={18} color={colors.white} />
+                                    <Text style={styles.uploadBtnText}>
+                                        {order.invoiceUrl ? "Replace Invoice" : "Upload Invoice"}
+                                    </Text>
+                                </>
+                            )}
+                        </TouchableOpacity>
+                        <Text style={styles.uploadInfo}>PDF only (Max 2MB)</Text>
+                    </View>
+                </View>
+
                 {/* Retailer Info */}
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>Retailer Details</Text>
                     <View style={styles.card}>
                         <View style={styles.retailerHeader}>
                             <View style={styles.avatarPlaceholder}>
-                                <Text style={styles.avatarText}>{order.retailerName.charAt(0)}</Text>
+                                <Text style={styles.avatarText}>{order.retailerName?.charAt(0) || order.User?.name?.charAt(0)}</Text>
                             </View>
                             <View>
-                                <Text style={styles.retailerName}>{order.retailerName}</Text>
+                                <Text style={styles.retailerName}>{order.retailerName || order.User?.name}</Text>
                                 <View style={styles.retailerMetaItem}>
                                     <Icon name="map-pin" size={14} color="#64748B" />
                                     <Text style={styles.retailerShop}>{order.shopName}</Text>
                                 </View>
                             </View>
                         </View>
-                        {/* Mock Contact Actions */}
                         <View style={styles.contactRow}>
-                            <TouchableOpacity style={styles.contactButton} onPress={() => Linking.openURL(`tel:9999999999`)}>
-                                <Icon name="phone" size={18} color="#3B82F6" />
-                                <Text style={styles.contactButtonText}>Call</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.contactButton} onPress={() => Linking.openURL(`mailto:test@test.com`)}>
+                            <TouchableOpacity style={styles.contactButton} onPress={() => Linking.openURL(`mailto:${order.User?.email}`)}>
                                 <Icon name="mail" size={18} color="#3B82F6" />
                                 <Text style={styles.contactButtonText}>Email</Text>
                             </TouchableOpacity>
                         </View>
                         <View style={styles.addressContainer}>
                             <Icon name="map-pin" size={16} color="#64748B" />
-                            <Text style={styles.addressText}>123, Wellness Street, Health City, CA</Text>
-                        </View>
-                    </View>
-                </View>
-
-                {/* Products */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Items ({order.items.length})</Text>
-                    <View style={styles.card}>
-                        {order.items.map((item, index) => (
-                            <View key={index} style={[styles.productItem, index === order.items.length - 1 && styles.lastProductItem]}>
-                                <View style={styles.productInfo}>
-                                    <Text style={styles.productName}>{item.name}</Text>
-                                    <Text style={styles.productMeta}>Qty: {item.quantity} x ₹{item.price}</Text>
-                                </View>
-                                <Text style={styles.productTotal}>₹{item.quantity * item.price}</Text>
-                            </View>
-                        ))}
-                        <View style={styles.totalRow}>
-                            <Text style={styles.totalLabel}>Total Amount</Text>
-                            <Text style={styles.totalValue}>₹{order.totalAmount.toLocaleString()}</Text>
+                            <Text style={styles.addressText}>{order.address}</Text>
                         </View>
                     </View>
                 </View>
@@ -235,40 +401,42 @@ export default function OrderDetailsScreen() {
                         <View style={styles.infoRow}>
                             <Text style={styles.infoLabel}>Method</Text>
                             <View style={styles.infoValueBubble}>
-                                {order.paymentMethod === "COD" ? <Icon name="dollar-sign" size={14} color="#0F172A" /> : <Icon name="credit-card" size={14} color="#0F172A" />}
+                                {order.paymentMethod === "COD" ? <Icon name="user" size={14} color="#0F172A" /> : <Icon name="credit-card" size={14} color="#0F172A" />}
                                 <Text style={styles.infoValueText}>{order.paymentMethod}</Text>
                             </View>
                         </View>
-                        {isAdvancePayment && (
-                            <>
-                                <View style={styles.infoRow}>
-                                    <Text style={styles.infoLabel}>Status</Text>
-                                    <Text style={[styles.infoValueBold, { color: STATUS_COLORS[order.status] }]}>
-                                        {order.status === "Awaiting Payment Confirmation" ? "Pending Approval" : "Paid"}
-                                    </Text>
-                                </View>
-                                {order.paymentProofUrl && (
-                                    <View style={styles.proofContainer}>
-                                        <Text style={styles.proofLabel}>Payment Proof</Text>
-                                        <TouchableOpacity
-                                            style={styles.proofLink}
-                                            onPress={() => Linking.openURL(order.paymentProofUrl!)}
-                                        >
-                                            <Icon name="external-link" size={16} color="#3B82F6" />
-                                            <Text style={styles.proofLinkText}>View Screenshot</Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                )}
-                                {order.paymentTransactionId && (
-                                    <View style={styles.infoRow}>
-                                        <Text style={styles.infoLabel}>Transaction ID</Text>
-                                        <View style={styles.copyRow}>
-                                            <Text style={styles.infoValueMono}>{order.paymentTransactionId}</Text>
-                                            <Icon name="copy" size={14} color="#94A3B8" />
-                                        </View>
-                                    </View>
-                                )}
-                            </>
+                        <View style={styles.infoRow}>
+                            <Text style={styles.infoLabel}>Status</Text>
+                            <Text style={[styles.infoValueBold, { color: STATUS_COLORS[order.status] || colors.textLight }]}>
+                                {order.paymentStatus.toUpperCase()}
+                            </Text>
+                        </View>
+                    </View>
+                </View>
+
+                {/* Rating Section */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Order Rating</Text>
+                    <View style={styles.card}>
+                        <View style={styles.ratingContainer}>
+                            {[1, 2, 3, 4, 5].map((star) => (
+                                <TouchableOpacity
+                                    key={star}
+                                    onPress={() => !order.rating && handleRateOrder(star)}
+                                    disabled={!!order.rating}
+                                >
+                                    <Icon
+                                        name="star"
+                                        size={32}
+                                        color={(order.rating || 0) >= star ? "#F59E0B" : "#E2E8F0"}
+                                    />
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                        {order.rating ? (
+                            <Text style={styles.ratingInfoText}>Rating submitted: {order.rating} stars</Text>
+                        ) : (
+                            <Text style={styles.ratingHintText}>Click a star to rate this order</Text>
                         )}
                     </View>
                 </View>
@@ -282,6 +450,11 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: "#F8FAFC",
+    },
+    centerContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     header: {
         flexDirection: "row",
@@ -539,38 +712,93 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: "700",
     },
-    infoValueMono: {
-        fontSize: 14,
-        fontFamily: "Courier",
-        color: "#0F172A",
-    },
-    copyRow: {
+    // Invoice Styles
+    invoiceDisplay: {
         flexDirection: "row",
+        justifyContent: "space-between",
         alignItems: "center",
-        gap: 6,
-    },
-    proofContainer: {
-        marginTop: 8,
-        padding: 12,
         backgroundColor: "#F8FAFC",
-        borderRadius: 8,
+        padding: 12,
+        borderRadius: 12,
+        marginBottom: 16,
         borderWidth: 1,
         borderColor: "#E2E8F0",
-        gap: 8,
     },
-    proofLabel: {
-        fontSize: 12,
-        fontWeight: "600",
-        color: "#64748B",
-    },
-    proofLink: {
+    invoiceInfo: {
         flexDirection: "row",
         alignItems: "center",
-        gap: 6,
     },
-    proofLinkText: {
-        color: "#3B82F6",
+    invoiceName: {
+        fontSize: 14,
         fontWeight: "600",
-        textDecorationLine: "underline",
+        color: "#0F172A",
+    },
+    invoiceStatus: {
+        fontSize: 12,
+        color: "#10B981",
+        fontWeight: "500",
+    },
+    viewInvoiceBtn: {
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        backgroundColor: "#FFFFFF",
+        borderRadius: 6,
+        borderWidth: 1,
+        borderColor: colors.primary,
+    },
+    viewInvoiceText: {
+        color: colors.primary,
+        fontSize: 12,
+        fontWeight: "600",
+    },
+    noInvoiceText: {
+        fontSize: 14,
+        color: "#64748B",
+        textAlign: "center",
+        marginBottom: 16,
+        fontStyle: "italic",
+    },
+    uploadBtn: {
+        backgroundColor: colors.primary,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        paddingVertical: 12,
+        borderRadius: 12,
+        gap: 8,
+    },
+    disabledBtn: {
+        opacity: 0.6,
+    },
+    uploadBtnText: {
+        color: colors.white,
+        fontSize: 15,
+        fontWeight: "600",
+    },
+    uploadInfo: {
+        fontSize: 11,
+        color: "#94A3B8",
+        textAlign: "center",
+        marginTop: 8,
+    },
+    ratingContainer: {
+        flexDirection: "row",
+        justifyContent: "center",
+        gap: 12,
+        paddingVertical: 8,
+    },
+    ratingInfoText: {
+        textAlign: "center",
+        fontSize: 14,
+        color: "#10B981",
+        fontWeight: "600",
+        marginTop: 8,
+    },
+    ratingHintText: {
+        textAlign: "center",
+        fontSize: 12,
+        color: "#64748B",
+        fontStyle: "italic",
+        marginTop: 8,
     },
 });

@@ -1,4 +1,4 @@
-import { PaymentConfiguration } from "@/data/paymentMethods";
+import { AdminPaymentConfiguration } from "@/data/paymentMethods";
 import { PaymentService } from "@/services/payment.service";
 import { colors } from "@/styles/colors";
 import { Ionicons } from "@expo/vector-icons";
@@ -18,7 +18,7 @@ import {
 } from "react-native";
 
 export default function PaymentConfigurationScreen() {
-    const [config, setConfig] = useState<PaymentConfiguration | null>(null);
+    const [config, setConfig] = useState<AdminPaymentConfiguration | null>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [qrImage, setQrImage] = useState<any>(null);
@@ -93,7 +93,7 @@ export default function PaymentConfigurationScreen() {
         );
     }
 
-    const updateField = (field: keyof PaymentConfiguration, value: any) => {
+    const updateField = <K extends keyof AdminPaymentConfiguration>(field: K, value: AdminPaymentConfiguration[K]) => {
         setConfig(prev => prev ? { ...prev, [field]: value } : null);
     };
 
@@ -167,7 +167,7 @@ export default function PaymentConfigurationScreen() {
                                         <Text style={styles.label}>UPI ID</Text>
                                         <TextInput
                                             style={styles.input}
-                                            value={config.upiId}
+                                            value={config.upiId || ""}
                                             onChangeText={(text) => updateField('upiId', text)}
                                             placeholder="e.g. test@lorem.com"
                                         />
@@ -220,7 +220,7 @@ export default function PaymentConfigurationScreen() {
                                         <Text style={styles.label}>Bank Name</Text>
                                         <TextInput
                                             style={styles.input}
-                                            value={config.bankName}
+                                            value={config.bankName || ""}
                                             onChangeText={(text) => updateField('bankName', text)}
                                             placeholder="e.g. ICICI"
                                         />
@@ -229,7 +229,7 @@ export default function PaymentConfigurationScreen() {
                                         <Text style={styles.label}>Account Number</Text>
                                         <TextInput
                                             style={styles.input}
-                                            value={config.accountNumber}
+                                            value={config.accountNumber || ""}
                                             onChangeText={(text) => updateField('accountNumber', text)}
                                             keyboardType="numeric"
                                             placeholder="Account Number"
@@ -239,7 +239,7 @@ export default function PaymentConfigurationScreen() {
                                         <Text style={styles.label}>IFSC Code</Text>
                                         <TextInput
                                             style={styles.input}
-                                            value={config.ifscCode}
+                                            value={config.ifscCode || ""}
                                             onChangeText={(text) => updateField('ifscCode', text)}
                                             placeholder="IFSC Code"
                                         />
@@ -248,7 +248,7 @@ export default function PaymentConfigurationScreen() {
                                         <Text style={styles.label}>Account Holder Name</Text>
                                         <TextInput
                                             style={styles.input}
-                                            value={config.accountHolderName}
+                                            value={config.accountHolderName || ""}
                                             onChangeText={(text) => updateField('accountHolderName', text)}
                                             placeholder="Account Holder Name"
                                         />
@@ -326,7 +326,7 @@ export default function PaymentConfigurationScreen() {
                             <Text style={styles.label}>Description</Text>
                             <TextInput
                                 style={styles.input}
-                                value={config.discountDescription === "null" ? "" : config.discountDescription}
+                                value={config.discountDescription || ""}
                                 onChangeText={(text) => updateField('discountDescription', text)}
                                 placeholder="e.g. 5% off on Advance Payment"
                             />

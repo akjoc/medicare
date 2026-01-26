@@ -1,6 +1,7 @@
 import { APP_CONFIG } from "@/constants/app";
 import { useCart } from "@/context/CartContext";
-import { PaymentConfiguration } from "@/data/paymentMethods";
+import { RetailerPaymentConfiguration } from "@/data/paymentMethods";
+import { CreateOrderPayload, OrderService } from "@/services/order.service";
 import { PaymentService } from "@/services/payment.service";
 import { colors } from "@/styles/colors";
 import { Ionicons } from "@expo/vector-icons";
@@ -28,7 +29,7 @@ export default function CheckoutScreen() {
     const [isQRModalVisible, setIsQRModalVisible] = useState(false);
 
     // Live Payment Configuration
-    const [paymentConfig, setPaymentConfig] = useState<PaymentConfiguration | null>(null);
+    const [paymentConfig, setPaymentConfig] = useState<RetailerPaymentConfiguration | null>(null);
     const [configLoading, setConfigLoading] = useState(true);
 
     useEffect(() => {
@@ -56,28 +57,47 @@ export default function CheckoutScreen() {
         0
     );
 
+    const couponDiscount = appliedCoupon?.discount || 0;
+    const baseForPrepaidDiscount = subtotal - couponDiscount;
+
     // Calculate Discount based on Payment Config
     let prepaidDiscount = 0;
     if (paymentConfig?.discount.enabled && paymentMethod === "PREPAID") {
         if (paymentConfig.discount.type === "PERCENT") {
-            prepaidDiscount = (subtotal * paymentConfig.discount.value) / 100;
+            prepaidDiscount = (baseForPrepaidDiscount * paymentConfig.discount.value) / 100;
         } else {
             prepaidDiscount = paymentConfig.discount.value;
         }
     }
 
-    const couponDiscount = appliedCoupon?.discount || 0;
-
-    const totalAmount = Math.max(0, subtotal - prepaidDiscount - couponDiscount);
+    const totalAmount = Math.max(0, baseForPrepaidDiscount - prepaidDiscount);
 
     const handleAddressChange = () => {
         Alert.alert("Change Address", "Address management feature coming soon!");
     };
 
     const handlePlaceOrder = async () => {
+        if (!items.length) return;
+
         setLoading(true);
-        setTimeout(() => {
-            setLoading(false);
+        try {
+            const orderData: CreateOrderPayload = {
+                address: "jaipur", // Static for now as per user request, can be dynamic later
+                paymentMethod: paymentMethod === "COD" ? "COD" : "ONLINE",
+                cartItems: items.map(item => ({
+                    productId: item.productId,
+                    quantity: item.quantity
+                })),
+                itemTotal: subtotal,
+                deliveryFee: "FREE", // Hardcoded as per current UI/logic
+                couponDiscount: couponDiscount,
+                paymentDiscount: prepaidDiscount,
+                toPay: totalAmount.toFixed(2),
+                couponCode: appliedCoupon?.code || null
+            };
+
+            await OrderService.placeOrder(orderData);
+
             Alert.alert("Success", "Order placed successfully!", [
                 {
                     text: "OK",
@@ -87,7 +107,13 @@ export default function CheckoutScreen() {
                     },
                 },
             ]);
-        }, 1500);
+        } catch (error: any) {
+            console.error("Place order failed:", error);
+            const errorMessage = error.response?.data?.error || "Failed to place order. Please try again.";
+            Alert.alert("Error", errorMessage);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleAskForDiscount = () => {
@@ -270,38 +296,38 @@ Can you offer any extra discount on this?`;
                                         </Text>
                                     )}
 
-                                    {paymentConfig.advancePaymentMethods.upiQr.enabled && (
+                                    {paymentConfig.advancePaymentMethods?.upiQr?.enabled && (
                                         <View style={styles.methodDetail}>
                                             <Text style={styles.methodTitle}>UPI / QR Code</Text>
-                                            {paymentConfig.advancePaymentMethods.upiQr.qrCodeUrl && (
+                                            {paymentConfig.advancePaymentMethods?.upiQr?.qrCodeUrl && (
                                                 <TouchableOpacity onPress={() => setIsQRModalVisible(true)}>
                                                     <Image
-                                                        source={{ uri: paymentConfig.advancePaymentMethods.upiQr.qrCodeUrl }}
+                                                        source={{ uri: paymentConfig.advancePaymentMethods?.upiQr?.qrCodeUrl }}
                                                         style={styles.qrImage}
                                                         resizeMode="contain"
                                                     />
                                                 </TouchableOpacity>
                                             )}
                                             <Text style={styles.detailText}>
-                                                UPI ID: {paymentConfig.advancePaymentMethods.upiQr.upiId}
+                                                UPI ID: {paymentConfig.advancePaymentMethods?.upiQr?.upiId}
                                             </Text>
                                         </View>
                                     )}
 
-                                    {paymentConfig.advancePaymentMethods.bankTransfer.enabled && (
+                                    {paymentConfig.advancePaymentMethods?.bankTransfer?.enabled && (
                                         <View style={[styles.methodDetail, { marginTop: 12 }]}>
                                             <Text style={styles.methodTitle}>Bank Transfer</Text>
                                             <Text style={styles.detailText}>
-                                                Bank: {paymentConfig.advancePaymentMethods.bankTransfer.bankName}
+                                                Bank: {paymentConfig.advancePaymentMethods?.bankTransfer?.bankName}
                                             </Text>
                                             <Text style={styles.detailText}>
-                                                Acc No: {paymentConfig.advancePaymentMethods.bankTransfer.accountNumber}
+                                                Acc No: {paymentConfig.advancePaymentMethods?.bankTransfer?.accountNumber}
                                             </Text>
                                             <Text style={styles.detailText}>
-                                                IFSC: {paymentConfig.advancePaymentMethods.bankTransfer.ifscCode}
+                                                IFSC: {paymentConfig.advancePaymentMethods?.bankTransfer?.ifscCode}
                                             </Text>
                                             <Text style={styles.detailText}>
-                                                Holder: {paymentConfig.advancePaymentMethods.bankTransfer.accountHolderName}
+                                                Holder: {paymentConfig.advancePaymentMethods?.bankTransfer?.accountHolderName}
                                             </Text>
                                         </View>
                                     )}
@@ -353,15 +379,15 @@ Can you offer any extra discount on this?`;
                     </View>
 
                     <View style={styles.modalContent}>
-                        {paymentConfig?.advancePaymentMethods.upiQr.qrCodeUrl && (
+                        {paymentConfig?.advancePaymentMethods?.upiQr?.qrCodeUrl && (
                             <Image
-                                source={{ uri: paymentConfig.advancePaymentMethods.upiQr.qrCodeUrl }}
+                                source={{ uri: paymentConfig.advancePaymentMethods?.upiQr?.qrCodeUrl }}
                                 style={styles.fullQrImage}
                                 resizeMode="contain"
                             />
                         )}
                         <Text style={styles.modalUpiId}>
-                            UPI ID: {paymentConfig?.advancePaymentMethods.upiQr.upiId}
+                            UPI ID: {paymentConfig?.advancePaymentMethods?.upiQr?.upiId}
                         </Text>
                         <Text style={styles.modalInstructions}>
                             Scan this QR code using any UPI app to make the payment.

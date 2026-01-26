@@ -1,9 +1,10 @@
-import { MOCK_ORDERS, Order, OrderStatus } from "@/data/mockOrders";
+import { OrderService } from "@/services/order.service";
 import { colors } from "@/styles/colors";
 import { Ionicons as Icon } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
+    ActivityIndicator,
     FlatList,
     Pressable,
     ScrollView,
@@ -14,71 +15,158 @@ import {
     View,
 } from "react-native";
 
-const STATUS_COLORS: Record<OrderStatus, string> = {
-    "Awaiting Payment Confirmation": "#F59E0B", // Amber
-    Processing: "#3B82F6", // Blue
-    Packed: "#8B5CF6", // Purple
-    "Out for Delivery": "#F97316", // Orange
-    Delivered: "#10B981", // Green
-    Cancelled: "#EF4444", // Red
+interface AdminOrder {
+    id: number;
+    userId: number;
+    status: string;
+    address: string;
+    totalAmount: number;
+    subTotal: number;
+    discount: number;
+    deliveryFee: number;
+    paymentMethod: string;
+    paymentStatus: string;
+    orderDate: string;
+    retailerName: string;
+    shopName: string;
+    couponCode: string | null;
+    couponDiscount: number;
+    paymentDiscount: number;
+    invoiceUrl: string | null;
+    rating: number | null;
+    review: string | null;
+    createdAt: string;
+    updatedAt: string;
+    User: {
+        id: number;
+        name: string;
+        email: string;
+    };
+    OrderItems: Array<{
+        id: number;
+        quantity: number;
+        price: number;
+        productId: number;
+        Product: {
+            id: number;
+            name: string;
+        };
+    }>;
+}
+
+const STATUS_COLORS: Record<string, string> = {
+    "pending": "#F59E0B",
+    "Processing": "#3B82F6",
+    "Packed": "#8B5CF6",
+    "Out for Delivery": "#F97316",
+    "Delivered": "#10B981",
+    "Cancelled": "#EF4444",
+    "Awaiting Payment Confirmation": "#F59E0B",
 };
 
 export default function OrdersScreen() {
     const router = useRouter();
+    const [orders, setOrders] = useState<AdminOrder[]>([]);
     const [searchQuery, setSearchQuery] = useState("");
-    const [statusFilter, setStatusFilter] = useState<OrderStatus | "All">("All");
+    const [debouncedSearch, setDebouncedSearch] = useState("");
+    const [statusFilter, setStatusFilter] = useState("All");
+    const [loading, setLoading] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalItems, setTotalItems] = useState(0);
 
-    const filteredOrders = useMemo(() => {
-        return MOCK_ORDERS.filter((order) => {
-            const matchesSearch =
-                order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                order.retailerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                order.shopName.toLowerCase().includes(searchQuery.toLowerCase());
+    // Debounce search effect
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearch(searchQuery);
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [searchQuery]);
 
-            const matchesStatus = statusFilter === "All" || order.status === statusFilter;
+    const fetchOrders = useCallback(async (pageNum: number, search: string, status: string, isRefresh = false) => {
+        if (loading) return;
+        setLoading(true);
+        try {
+            const params = {
+                page: pageNum,
+                limit: 10,
+                search: search || undefined,
+                status: status === "All" ? undefined : status
+            };
+            const response = await OrderService.getAllOrders(params);
 
-            return matchesSearch && matchesStatus;
-        });
-    }, [searchQuery, statusFilter]);
-
-    const renderOrderItem = ({ item }: { item: Order }) => {
-        const getStatusIconName = (status: OrderStatus) => {
-            switch (status) {
-                case "Awaiting Payment Confirmation": return "alert-circle";
-                case "Processing": return "time";
-                case "Packed": return "cube";
-                case "Out for Delivery": return "bicycle"; // Using bicycle for delivery/truck equivalent in Ionicons if needed, or stick to generic
-                case "Delivered": return "checkmark-circle";
-                case "Cancelled": return "close-circle";
-                default: return "help-circle";
+            if (isRefresh || pageNum === 1) {
+                setOrders(response.orders);
+            } else {
+                setOrders(prev => [...prev, ...response.orders]);
             }
+
+            setTotalPages(response.pages);
+            setTotalItems(response.total);
+            setPage(pageNum);
+        } catch (error) {
+            console.error("Failed to fetch orders:", error);
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
+        }
+    }, []);
+
+    // Initial fetch and filter changes
+    useEffect(() => {
+        fetchOrders(1, debouncedSearch, statusFilter, true);
+    }, [debouncedSearch, statusFilter]);
+
+    const handleRefresh = () => {
+        setRefreshing(true);
+        fetchOrders(1, debouncedSearch, statusFilter, true);
+    };
+
+    const handleLoadMore = () => {
+        if (!loading && page < totalPages) {
+            fetchOrders(page + 1, debouncedSearch, statusFilter);
+        }
+    };
+
+    const renderOrderItem = ({ item }: { item: AdminOrder }) => {
+        const getStatusIconName = (status: string) => {
+            const s = status.toLowerCase();
+            if (s.includes("pending")) return "alert-circle";
+            if (s.includes("processing")) return "time";
+            if (s.includes("packed")) return "cube";
+            if (s.includes("delivery")) return "bicycle";
+            if (s.includes("delivered")) return "checkmark-circle";
+            if (s.includes("cancelled")) return "close-circle";
+            return "help-circle";
         };
 
         const getPaymentIconName = (method: string) => {
             switch (method) {
                 case "COD": return "cash-outline";
-                case "UPI": return "phone-portrait-outline";
-                case "Bank Transfer": return "card-outline";
+                case "ONLINE": return "card-outline";
                 default: return "card-outline";
             }
         };
+
+        const statusColor = STATUS_COLORS[item.status] || colors.textLight;
 
         return (
             <TouchableOpacity
                 style={[
                     styles.card,
-                    item.status === "Awaiting Payment Confirmation" && styles.cardHighlight
+                    (item.status === "Awaiting Payment Confirmation" || item.status === "pending") && styles.cardHighlight
                 ]}
                 onPress={() => router.push(`/(admin)/orders/${item.id}` as any)}
             >
                 <View style={styles.cardHeader}>
                     <View style={styles.orderIdContainer}>
                         <Text style={styles.orderId}>#{item.id}</Text>
-                        <Text style={styles.date}>{new Date(item.date).toLocaleDateString()}</Text>
+                        <Text style={styles.date}>{new Date(item.orderDate).toLocaleDateString()}</Text>
                     </View>
-                    <View style={[styles.statusBadge, { backgroundColor: STATUS_COLORS[item.status] + "20" }]}>
-                        <Icon name={getStatusIconName(item.status) as any} size={14} color={STATUS_COLORS[item.status]} />
-                        <Text style={[styles.statusText, { color: STATUS_COLORS[item.status] }]}>
+                    <View style={[styles.statusBadge, { backgroundColor: statusColor + "20" }]}>
+                        <Icon name={getStatusIconName(item.status) as any} size={14} color={statusColor} />
+                        <Text style={[styles.statusText, { color: statusColor }]}>
                             {item.status}
                         </Text>
                     </View>
@@ -97,7 +185,7 @@ export default function OrdersScreen() {
                     </View>
                 </View>
 
-                {item.status === "Awaiting Payment Confirmation" && (
+                {(item.status === "Awaiting Payment Confirmation" || (item.paymentMethod === "ONLINE" && item.paymentStatus === "pending")) && (
                     <View style={styles.actionPrompt}>
                         <Text style={styles.actionPromptText}>Action Required: Verify Payment</Text>
                     </View>
@@ -111,12 +199,8 @@ export default function OrdersScreen() {
             <View style={styles.header}>
                 <View>
                     <Text style={styles.title}>Orders</Text>
-                    <Text style={styles.subtitle}>{filteredOrders.length} Orders Recieved</Text>
+                    <Text style={styles.subtitle}>{totalItems} Orders Found</Text>
                 </View>
-                {/* Placeholder for future action button if needed, or keeping layout consistent */}
-                {/* <TouchableOpacity style={styles.addButton}>
-                    <Icon name="filter" size={24} color={colors.white} />
-                 </TouchableOpacity> */}
             </View>
 
             <View style={styles.actionRow}>
@@ -140,18 +224,16 @@ export default function OrdersScreen() {
                             style={[
                                 styles.filterChip,
                                 statusFilter === status && styles.filterChipActive,
-                                status === "Awaiting Payment Confirmation" && statusFilter !== status && styles.filterChipWarning
                             ]}
-                            onPress={() => setStatusFilter(status as OrderStatus | "All")}
+                            onPress={() => setStatusFilter(status)}
                         >
                             <Text
                                 style={[
                                     styles.filterChipText,
                                     statusFilter === status && styles.filterChipTextActive,
-                                    status === "Awaiting Payment Confirmation" && statusFilter !== status && styles.filterChipTextWarning
                                 ]}
                             >
-                                {status === "Awaiting Payment Confirmation" ? "Action Needed" : status}
+                                {status === "pending" ? "Action Needed" : status}
                             </Text>
                         </Pressable>
                     ))}
@@ -159,15 +241,28 @@ export default function OrdersScreen() {
             </View>
 
             <FlatList
-                data={filteredOrders}
+                data={orders}
                 renderItem={renderOrderItem}
-                keyExtractor={(item) => item.id}
+                keyExtractor={(item) => item.id.toString()}
                 contentContainerStyle={styles.listContent}
+                onRefresh={handleRefresh}
+                refreshing={refreshing}
+                onEndReached={handleLoadMore}
+                onEndReachedThreshold={0.5}
+                ListFooterComponent={
+                    loading && !refreshing ? (
+                        <View style={{ paddingVertical: 20 }}>
+                            <ActivityIndicator color={colors.primary} />
+                        </View>
+                    ) : null
+                }
                 ListEmptyComponent={
-                    <View style={styles.emptyState}>
-                        <Icon name="cube-outline" size={48} color={colors.textLight} />
-                        <Text style={styles.emptyStateText}>No orders found</Text>
-                    </View>
+                    !loading ? (
+                        <View style={styles.emptyState}>
+                            <Icon name="cube-outline" size={48} color={colors.textLight} />
+                            <Text style={styles.emptyStateText}>No orders found</Text>
+                        </View>
+                    ) : null
                 }
             />
         </View>

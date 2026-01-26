@@ -83,7 +83,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
                     return {
                         productId: item.productId,
                         quantity: item.quantity,
-                        categoryId: categoryIds
+                        categoryId: categoryIds,
+                        price: item.Product.price,
+                        salePrice: item.Product.salePrice
                     };
                 })
             };
@@ -153,7 +155,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             await refreshCart();
             // Note: Per user request, we don't auto-validate coupon on quantity update
         } catch (error: any) {
-            Alert.alert("Error", error.response?.data?.message || "Failed to update quantity");
+            Alert.alert("Error", error.response?.data?.error || "Failed to update quantity");
         }
     };
 

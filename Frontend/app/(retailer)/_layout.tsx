@@ -1,8 +1,10 @@
 import { CartProvider, useCart } from "@/context/CartContext";
+import { getUser } from "@/services/auth.service";
 import { colors } from "@/styles/colors";
 import { Ionicons } from "@expo/vector-icons";
-import { Tabs } from "expo-router";
-import { View } from "react-native";
+import { Tabs, useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
+import { ActivityIndicator, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 function RetailerTabs() {
@@ -117,6 +119,31 @@ function RetailerTabs() {
 }
 
 export default function RetailerLayout() {
+    const router = useRouter();
+    const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
+
+    useEffect(() => {
+        const checkAuth = async () => {
+            const user = await getUser();
+            if (user?.role === "retailer") {
+                setIsAuthorized(true);
+            } else if (user?.role === "admin") {
+                router.replace("/(admin)/orders");
+            } else {
+                router.replace("/(auth)/login");
+            }
+        };
+        checkAuth();
+    }, []);
+
+    if (isAuthorized === null) {
+        return (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                <ActivityIndicator size="large" color={colors.primary} />
+            </View>
+        );
+    }
+
     return (
         <View style={{ flex: 1, backgroundColor: colors.white }}>
             <CartProvider>

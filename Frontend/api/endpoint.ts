@@ -47,4 +47,6 @@ export const ENDPOINTS = {
     UPDATE_ORDER_STATUS: (id: string) => `/orders/${id}/status`,
     UPLOAD_ORDER_INVOICE: (id: string) => `/orders/${id}/invoice`,
     UPDATE_PAYMENT_STATUS: (id: string) => `/orders/${id}/payment-status`,
+    //Rating Functionality
+    ORDER_RETAILER_RATING: (id: string) => `orders/${id}/rate`,
 } as const;

@@ -1,33 +1,70 @@
-import { MOCK_ORDERS } from "@/data/mockOrders";
+import { OrderService } from "@/services/order.service";
 import { colors } from "@/styles/colors";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
-import { FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import React, { useCallback, useEffect, useState } from "react";
+import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+
+interface RetailerOrder {
+    id: number;
+    status: string;
+    totalAmount: number;
+    orderDate: string;
+    OrderItems: Array<{
+        id: number;
+        quantity: number;
+        price: number;
+        Product: {
+            name: string;
+        };
+    }>;
+}
 
 export default function RetailerOrdersScreen() {
     const router = useRouter();
+    const [orders, setOrders] = useState<RetailerOrder[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
 
-    // Filter orders for the current retailer (assuming retailer ID "1")
-    const retailerOrders = MOCK_ORDERS.filter(order => order.retailerId === "1" || order.retailerId === "89283"); // including mock ID 89283 just in case
-
-    const filteredOrders = retailerOrders.filter(order =>
-        order.id.toLowerCase().includes(searchQuery.toLowerCase())
-    ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-    const getStatusColor = (status: string) => {
-        switch (status) {
-            case "delivered": return "#16A34A";
-            case "processing": return "#2563EB";
-            case "cancelled": return "#DC2626";
-            case "pending": return "#D97706";
-            default: return "#6B7280";
+    const fetchOrders = useCallback(async () => {
+        try {
+            const data = await OrderService.getUserOrders();
+            // Data could be an array or an object with an orders array depending on backend implementation
+            // Based on earlier context, we expect an array or { orders: [...] }
+            setOrders(Array.isArray(data) ? data : data.orders || []);
+        } catch (error) {
+            console.error("Failed to fetch retailer orders:", error);
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
         }
+    }, []);
+
+    useEffect(() => {
+        fetchOrders();
+    }, [fetchOrders]);
+
+    const onRefresh = () => {
+        setRefreshing(true);
+        fetchOrders();
     };
 
-    const renderOrderItem = ({ item }: { item: typeof MOCK_ORDERS[0] }) => (
+    const filteredOrders = orders.filter(order =>
+        order.id.toString().includes(searchQuery.toLowerCase())
+    ).sort((a, b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime());
+
+    const getStatusColor = (status: string) => {
+        const s = status.toLowerCase();
+        if (s.includes("delivered")) return "#16A34A";
+        if (s.includes("processing") || s.includes("packed")) return "#2563EB";
+        if (s.includes("cancelled")) return "#DC2626";
+        if (s.includes("pending")) return "#D97706";
+        return "#6B7280";
+    };
+
+    const renderOrderItem = ({ item }: { item: RetailerOrder }) => (
         <TouchableOpacity
             style={styles.orderCard}
             onPress={() => router.push(`/(retailer)/orders/${item.id}`)}
@@ -35,7 +72,7 @@ export default function RetailerOrdersScreen() {
             <View style={styles.orderHeader}>
                 <View>
                     <Text style={styles.orderId}>Order #{item.id}</Text>
-                    <Text style={styles.orderDate}>{new Date(item.date).toLocaleDateString()}</Text>
+                    <Text style={styles.orderDate}>{new Date(item.orderDate).toLocaleDateString()}</Text>
                 </View>
                 <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '20' }]}>
                     <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
@@ -49,7 +86,7 @@ export default function RetailerOrdersScreen() {
             <View style={styles.orderSummary}>
                 <View style={styles.summaryItem}>
                     <Text style={styles.summaryLabel}>Items</Text>
-                    <Text style={styles.summaryValue}>{item.items.length}</Text>
+                    <Text style={styles.summaryValue}>{item.OrderItems?.length || 0}</Text>
                 </View>
                 <View style={styles.summaryItem}>
                     <Text style={styles.summaryLabel}>Total Amount</Text>
@@ -67,7 +104,7 @@ export default function RetailerOrdersScreen() {
     return (
         <SafeAreaView style={styles.container}>
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => router.push("/(retailer)/account")} style={styles.backButton}>
+                <TouchableOpacity onPress={() => router.replace("/(retailer)/account")} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={24} color={colors.textDark} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>My Orders</Text>
@@ -86,18 +123,27 @@ export default function RetailerOrdersScreen() {
                 </View>
             </View>
 
-            <FlatList
-                data={filteredOrders}
-                renderItem={renderOrderItem}
-                keyExtractor={item => item.id}
-                contentContainerStyle={styles.listContent}
-                ListEmptyComponent={
-                    <View style={styles.emptyContainer}>
-                        <Ionicons name="cube-outline" size={64} color={colors.textLight} />
-                        <Text style={styles.emptyText}>No orders found</Text>
-                    </View>
-                }
-            />
+            {loading && !refreshing ? (
+                <View style={styles.centerContainer}>
+                    <ActivityIndicator size="large" color={colors.primary} />
+                </View>
+            ) : (
+                <FlatList
+                    data={filteredOrders}
+                    renderItem={renderOrderItem}
+                    keyExtractor={item => item.id.toString()}
+                    contentContainerStyle={styles.listContent}
+                    refreshControl={
+                        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />
+                    }
+                    ListEmptyComponent={
+                        <View style={styles.emptyContainer}>
+                            <Ionicons name="cube-outline" size={64} color={colors.textLight} />
+                            <Text style={styles.emptyText}>No orders found</Text>
+                        </View>
+                    }
+                />
+            )}
         </SafeAreaView>
     );
 }
@@ -106,6 +152,11 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: colors.background,
+    },
+    centerContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     header: {
         flexDirection: "row",

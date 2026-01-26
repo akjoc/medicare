@@ -1,22 +1,44 @@
-export interface PaymentConfiguration {
+export interface AdminPaymentConfiguration {
+    id: number;
     codEnabled: boolean;
     codNote: string;
     advancePaymentEnabled: boolean;
     advancePaymentInstruction: string;
+    upiQrEnabled: boolean;
+    bankTransferEnabled: boolean;
+    bankName: string | null;
+    accountNumber: string | null;
+    ifscCode: string | null;
+    accountHolderName: string | null;
+    upiId: string | null;
+    qrCodeUrl: string | null;
+    advancePaymentDiscountEnabled: boolean;
+    discountType: 'PERCENT' | 'FLAT';
+    discountValue: number;
+    discountDescription: string | null;
+    createdAt?: string;
+    updatedAt?: string;
+}
+
+export interface RetailerPaymentConfiguration {
+    codEnabled: boolean;
+    codNote: string | null;
+    advancePaymentEnabled: boolean;
+    advancePaymentInstruction: string | null;
     advancePaymentMethods: {
         upiQr: {
             enabled: boolean;
             upiId: string;
             qrCodeUrl: string;
-        };
+        } | null;
         bankTransfer: {
             enabled: boolean;
             bankName: string;
             accountNumber: string;
             ifscCode: string;
             accountHolderName: string;
-        };
-    };
+        } | null;
+    } | null;
     discount: {
         enabled: boolean;
         type: 'PERCENT' | 'FLAT';
@@ -25,7 +47,10 @@ export interface PaymentConfiguration {
     };
 }
 
-export const MOCK_PAYMENT_CONFIG: PaymentConfiguration = {
+// Keep the old name as an alias for now if needed, or update everywhere
+// export type PaymentConfiguration = RetailerPaymentConfiguration;
+
+export const MOCK_PAYMENT_CONFIG: RetailerPaymentConfiguration = {
     codEnabled: true,
     codNote: "Pay cash upon delivery.",
     advancePaymentEnabled: true,
