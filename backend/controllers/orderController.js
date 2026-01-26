@@ -304,11 +304,6 @@ const placeOrder = async (req, res) => {
 
         const deliveryFee = await calculateDeliveryFee(subTotal);
 
-        // Debug Logs
-        console.log('--- Place Order Debug ---');
-        console.log('SubTotal:', subTotal);
-        console.log('Delivery Fee:', deliveryFee);
-
         // 4. Calculate Discounts
 
         // Coupon Discount
@@ -333,8 +328,11 @@ const placeOrder = async (req, res) => {
         // Payment Discount (Dynamic from Config)
         let paymentDiscount = 0;
         if (paymentMethod === 'ONLINE' && paymentConfig.advancePaymentDiscountEnabled) {
+            // Apply discount on remaining amount after coupon
+            const amountAfterCoupon = Math.max(0, subTotal - couponDiscount);
+
             if (paymentConfig.discountType === 'PERCENT') {
-                paymentDiscount = (subTotal * paymentConfig.discountValue) / 100;
+                paymentDiscount = (amountAfterCoupon * paymentConfig.discountValue) / 100;
             } else {
                 paymentDiscount = paymentConfig.discountValue;
             }
@@ -343,10 +341,6 @@ const placeOrder = async (req, res) => {
         // Final Total
         let finalTotal = subTotal + deliveryFee - couponDiscount - paymentDiscount;
         if (finalTotal < 0) finalTotal = 0;
-
-        console.log('Coupon Discount:', couponDiscount);
-        console.log('Payment Discount:', paymentDiscount);
-        console.log('Final Total:', finalTotal);
 
         // --- STRICT VALIDATION START ---
 
