@@ -81,6 +81,10 @@ const Product = sequelize.define('Product', {
     packing: {
         type: DataTypes.STRING,
         allowNull: true
+    },
+    expiry: {
+        type: DataTypes.DATEONLY,
+        allowNull: true
     }
 }, {
     timestamps: true

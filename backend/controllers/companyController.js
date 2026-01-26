@@ -42,6 +42,19 @@ const getAllCompanies = async (req, res) => {
     }
 };
 
+// Get Company By ID
+const getCompanyById = async (req, res) => {
+    try {
+        const company = await Company.findByPk(req.params.id);
+        if (!company) {
+            return res.status(404).json({ error: 'Company not found' });
+        }
+        res.status(200).json(company);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
 // Update Company (Name and/or Status)
 const updateCompany = async (req, res) => {
     try {
@@ -124,6 +137,7 @@ const deleteCompany = async (req, res) => {
 module.exports = {
     createCompany,
     getAllCompanies,
+    getCompanyById,
     updateCompany,
     toggleCompanyStatus,
     deleteCompany
