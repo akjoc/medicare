@@ -203,11 +203,10 @@ const placeOrder = async (req, res) => {
         }
 
         // Mandatory Financial Fields Check
-        if (itemTotal === undefined || clientDeliveryFee === undefined ||
-            clientCouponDiscount === undefined || clientPaymentDiscount === undefined ||
-            toPay === undefined || couponCode === undefined) {
+        // Mandatory Financial Fields Check (Relaxed: Coupons/Discounts optional)
+        if (itemTotal === undefined || clientDeliveryFee === undefined || toPay === undefined) {
             await t.rollback();
-            return res.status(400).json({ error: 'Missing required financial fields: itemTotal, deliveryFee, couponDiscount, paymentDiscount, toPay, and couponCode are mandatory.' });
+            return res.status(400).json({ error: 'Missing required financial fields: itemTotal, deliveryFee, and toPay are mandatory.' });
         }
 
         // 1. Fetch Payment Configuration
