@@ -672,6 +672,13 @@ const updatePaymentStatus = async (req, res) => {
         }
 
         order.paymentStatus = status;
+
+        if (status === 'approved') {
+            order.status = 'Processing';
+        } else if (status === 'rejected') {
+            order.status = 'Cancelled';
+        }
+
         await order.save();
 
         res.json({ message: 'Payment status updated', order });
