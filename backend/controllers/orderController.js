@@ -298,6 +298,11 @@ const placeOrder = async (req, res) => {
 
         const deliveryFee = await calculateDeliveryFee(subTotal);
 
+        // Debug Logs
+        console.log('--- Place Order Debug ---');
+        console.log('SubTotal:', subTotal);
+        console.log('Delivery Fee:', deliveryFee);
+
         // 4. Calculate Discounts
 
         // Coupon Discount
@@ -332,6 +337,10 @@ const placeOrder = async (req, res) => {
         // Final Total
         let finalTotal = subTotal + deliveryFee - couponDiscount - paymentDiscount;
         if (finalTotal < 0) finalTotal = 0;
+
+        console.log('Coupon Discount:', couponDiscount);
+        console.log('Payment Discount:', paymentDiscount);
+        console.log('Final Total:', finalTotal);
 
         // --- STRICT VALIDATION START ---
 
