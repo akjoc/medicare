@@ -20,11 +20,6 @@ const getCleanProduct = (productInstance) => {
 // Create Product
 const createProduct = async (req, res) => {
     try {
-        console.log('--- Create Product Debug ---');
-        console.log('Headers:', req.headers);
-        console.log('Body:', JSON.stringify(req.body, null, 2));
-        console.log('Type of Name:', typeof req.body.name);
-
         const { name, description, price, buyingPrice, salePrice, companies, stock, categoryId, categoryIds, salt, sku, dosage, packing } = req.body;
 
         // Check if category provided (Handle single or array)
@@ -94,6 +89,7 @@ const createProduct = async (req, res) => {
         // Helper to parse potential JSON or single string
         const parseArrayField = (field) => {
             if (!field) return [];
+            if (Array.isArray(field)) return field; // Already an array
             try {
                 return JSON.parse(field);
             } catch (e) {
