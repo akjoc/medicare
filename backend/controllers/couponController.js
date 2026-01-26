@@ -187,8 +187,6 @@ const applyCoupon = async (req, res) => {
         let eligibleSubtotal = orderValue;
         const allowedCategories = Array.isArray(coupon.categoryIds) ? coupon.categoryIds : JSON.parse(coupon.categoryIds || '[]');
 
-        console.log(allowedCategories, "allowedCategories");
-
         if (allowedCategories.length > 0) {
             if (!cartItems || !Array.isArray(cartItems) || cartItems.length === 0) {
                 return res.status(400).json({ error: 'This coupon requires cart details to calculate category-specific discounts' });
