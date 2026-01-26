@@ -86,7 +86,6 @@ const createProduct = async (req, res) => {
             publicIds = []; // No public ID for external/default image
         }
 
-        // Helper to parse potential JSON or single string
         const parseArrayField = (field) => {
             if (!field) return [];
             if (Array.isArray(field)) return field; // Already an array
@@ -95,6 +94,25 @@ const createProduct = async (req, res) => {
             } catch (e) {
                 return [field];
             }
+        };
+
+        // Helper to validate and convert Expiry to YYYY-MM-DD
+        const parseAndValidateExpiry = (dateInput) => {
+            if (!dateInput) return null;
+            const dateStr = String(dateInput).trim();
+            // Strict DD-MM-YYYY
+            const dmyMatch = dateStr.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+            if (!dmyMatch) {
+                if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                    // YYYY-MM-DD is technically valid for DB, but user asked to reject if NOT DD-MM-YYYY?
+                    // "it should accept dd-mm-yyyy" implies strictness. 
+                    // Let's throw error for YYYY-MM-DD to be consistent with request "otherwise it should give err"
+                    throw new Error(`Invalid expiry format "${dateStr}". Please use DD-MM-YYYY.`);
+                }
+                throw new Error(`Invalid expiry format "${dateStr}". Please use DD-MM-YYYY.`);
+            }
+            // Return YYYY-MM-DD for DB
+            return `${dmyMatch[3]}-${dmyMatch[2]}-${dmyMatch[1]}`;
         };
 
         const product = await Product.create({
@@ -112,7 +130,7 @@ const createProduct = async (req, res) => {
             publicIds: publicIds, // Store array
             dosage, // Add Dosage
             packing, // Add Packing
-            expiry // Add Expiry
+            expiry: parseAndValidateExpiry(expiry) // Add Expiry with Validation
         });
 
         // Link Company logic:
@@ -357,6 +375,22 @@ const updateProduct = async (req, res) => {
             }
         };
 
+        // Helper to validate and convert Expiry to YYYY-MM-DD
+        const parseAndValidateExpiry = (dateInput) => {
+            if (!dateInput) return undefined; // Should be null or undefined?
+            if (dateInput === null) return null;
+
+            const dateStr = String(dateInput).trim();
+            const dmyMatch = dateStr.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+            if (!dmyMatch) {
+                if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                    throw new Error(`Invalid expiry format "${dateStr}". Please use DD-MM-YYYY.`);
+                }
+                throw new Error(`Invalid expiry format "${dateStr}". Please use DD-MM-YYYY.`);
+            }
+            return `${dmyMatch[3]}-${dmyMatch[2]}-${dmyMatch[1]}`;
+        };
+
         let updatedData = {
             name,
             sku,
@@ -369,7 +403,7 @@ const updateProduct = async (req, res) => {
             salt: parseArrayField(salt),
             dosage, // Add Dosage
             packing, // Add Packing
-            expiry // Add Expiry
+            expiry: parseAndValidateExpiry(expiry) // Add Expiry
         };
 
         // Handle Categories Update
