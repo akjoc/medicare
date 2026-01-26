@@ -411,8 +411,8 @@ const placeOrder = async (req, res) => {
             paymentMethod,
             deliveryFee,
             paymentMethod,
-            paymentStatus: paymentMethod === 'ONLINE' ? 'pending' : 'pending',
-            status: paymentMethod === 'ONLINE' ? 'Awaiting Payment Confirmation' : 'Processing', // Processing for COD
+            paymentStatus: 'pending',
+            status: paymentMethod === 'ONLINE' ? 'Awaiting Payment Confirmation' : 'Processing',
             retailerName,
             shopName
         }, { transaction: t });
@@ -494,9 +494,14 @@ const getAllOrders = async (req, res) => {
         const limit = parseInt(req.query.limit) || 10;
         const offset = (page - 1) * limit;
         const search = req.query.search || '';
+        const status = req.query.status;
 
         // Build Query
         const whereClause = {};
+
+        if (status) {
+            whereClause.status = status;
+        }
 
         if (search) {
             const searchConditions = [
