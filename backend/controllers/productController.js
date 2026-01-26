@@ -20,7 +20,7 @@ const getCleanProduct = (productInstance) => {
 // Create Product
 const createProduct = async (req, res) => {
     try {
-        const { name, description, price, buyingPrice, salePrice, companies, stock, categoryId, categoryIds, salt, sku, dosage, packing } = req.body;
+        const { name, description, price, buyingPrice, salePrice, companies, stock, categoryId, categoryIds, salt, sku, dosage, packing, expiry } = req.body;
 
         // Check if category provided (Handle single or array)
         let targetCategoryIds = [];
@@ -108,11 +108,11 @@ const createProduct = async (req, res) => {
             stock,
             salt: parseArrayField(salt),
 
-            // CategoryId: categoryId, // Deprecated
             imageUrls: imageUrls, // Store array
             publicIds: publicIds, // Store array
             dosage, // Add Dosage
-            packing // Add Packing
+            packing, // Add Packing
+            expiry // Add Expiry
         });
 
         // Link Company logic:
@@ -368,7 +368,8 @@ const updateProduct = async (req, res) => {
             stock,
             salt: parseArrayField(salt),
             dosage, // Add Dosage
-            packing // Add Packing
+            packing, // Add Packing
+            expiry // Add Expiry
         };
 
         // Handle Categories Update
@@ -557,7 +558,8 @@ const bulkUploadProducts = async (req, res) => {
                 'packing',
                 'category', 'composition',
                 'imageurls', 'imageurl', 'publicids', 'createdat', 'updatedat',
-                's.no', 'sno', 'no.'
+                's.no', 'sno', 'no.',
+                'expiry', 'expiry date', 'exp', 'expirydate'
             ]);
 
             // 4. Identify New Columns
@@ -653,9 +655,9 @@ const bulkUploadProducts = async (req, res) => {
                     companies.push(String(normalizedRow.company).trim());
                 }
 
-                // Salt -> salt
+                // Salt -> salt (Map Composition to Salt)
                 let saltArray = [];
-                const rawSalt = normalizedRow.salt;
+                const rawSalt = normalizedRow.salt || normalizedRow.composition;
                 if (rawSalt) {
                     // "Amoxycillin 250mg | Clavulanic acid 125mg"
                     saltArray = String(rawSalt).split('|').map(s => s.trim());
@@ -663,7 +665,7 @@ const bulkUploadProducts = async (req, res) => {
 
                 // Description parts
                 let descriptionParts = [];
-                if (normalizedRow.composition) descriptionParts.push(`Composition: ${normalizedRow.composition}`);
+                // if (normalizedRow.composition) descriptionParts.push(`Composition: ${normalizedRow.composition}`); // Moved to Salt
                 // if (normalizedRow.dosage) descriptionParts.push(`Dosage: ${normalizedRow.dosage}`); // Removed
                 // if (normalizedRow.packing) descriptionParts.push(`Packing: ${normalizedRow.packing}`); // Removed
                 const desc = normalizedRow.description;
@@ -750,6 +752,21 @@ const bulkUploadProducts = async (req, res) => {
                     continue;
                 }
 
+                // Expiry Logic
+                let expiryDate = null;
+                const rawExpiry = normalizedRow.expiry || normalizedRow.expirydate || normalizedRow.exp;
+                if (rawExpiry) {
+                    // Check if Excel serial date (number)
+                    if (typeof rawExpiry === 'number') {
+                        // Excel date to JS Date: (value - 25569) * 86400 * 1000
+                        expiryDate = new Date((rawExpiry - 25569) * 86400 * 1000);
+                    } else {
+                        // Try string parse
+                        expiryDate = new Date(rawExpiry);
+                    }
+                    if (isNaN(expiryDate.getTime())) expiryDate = null;
+                }
+
                 const product = await Product.create({
                     name,
                     sku, // Add SKU
@@ -766,7 +783,8 @@ const bulkUploadProducts = async (req, res) => {
                         : ["https://res.cloudinary.com/dhvch5umt/image/upload/v1768724782/medical-equipments-500x500_ul7oua.webp"],
                     publicIds: [],
                     dosage,
-                    packing
+                    packing,
+                    expiry: expiryDate
                 });
 
                 if (targetCategoryId) {
