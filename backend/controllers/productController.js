@@ -354,7 +354,7 @@ const getProductById = async (req, res) => {
 // Update Product
 const updateProduct = async (req, res) => {
     try {
-        const { name, description, price, buyingPrice, salePrice, companies, stock, salt, sku, dosage, packing, categoryIds } = req.body;
+        const { name, description, price, buyingPrice, salePrice, companies, stock, salt, sku, dosage, packing, categoryIds, expiry } = req.body;
         // Handle both camelCase and PascalCase for categoryId
         const categoryId = req.body.categoryId || req.body.CategoryId;
 
