@@ -14,6 +14,18 @@ const getCleanProduct = (productInstance) => {
     const plain = productInstance.get ? productInstance.get({ plain: true }) : productInstance;
     if (plain.CategoryId !== undefined) delete plain.CategoryId;
     if (plain.publicIds !== undefined) delete plain.publicIds;
+
+    // Format Expiry to DD-MM-YYYY
+    if (plain.expiry) {
+        const d = new Date(plain.expiry);
+        if (!isNaN(d.getTime())) {
+            const day = String(d.getDate()).padStart(2, '0');
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const year = d.getFullYear();
+            plain.expiry = `${day}-${month}-${year}`;
+        }
+    }
+
     return plain;
 };
 
