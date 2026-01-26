@@ -31,31 +31,26 @@ export default function CategoryProductsScreen() {
             setIsLoading(pageNum === 1);
             setIsLoadingMore(pageNum > 1);
 
-            const [categoryData, productsResponse] = await Promise.all([
-                CategoryService.getById(categoryId),
-                retailerProductService.getProductsByCategory(categoryId, pageNum, 10)
-            ]);
+            let currentCategory = category;
 
-            setCategory(categoryData);
-
-            // Filter products to ensure only products from this category are shown
-            // This is a fallback in case the backend doesn't filter properly
-            const filteredProducts = productsResponse.products.filter(p => {
-                // @ts-ignore
-                const productCategoryId = p.categoryId || p.CategoryId;
-                return productCategoryId === Number(categoryId) || productCategoryId === categoryId;
-            });
-
-            console.log(`Category ${categoryId}: Received ${productsResponse.products.length} products, filtered to ${filteredProducts.length}`);
-
-            if (pageNum === 1) {
-                setProducts(filteredProducts);
-            } else {
-                setProducts(prev => [...prev, ...filteredProducts]);
+            // If we don't have the category yet (first load), fetch it
+            if (!currentCategory) {
+                currentCategory = await CategoryService.getById(categoryId);
+                setCategory(currentCategory);
             }
 
-            setPage(pageNum);
-            setTotalPages(productsResponse.totalPages);
+            if (currentCategory) {
+                const productsResponse = await retailerProductService.getProductsByCategory(currentCategory.name, pageNum, 10);
+
+                if (pageNum === 1) {
+                    setProducts(productsResponse.products);
+                } else {
+                    setProducts(prev => [...prev, ...productsResponse.products]);
+                }
+
+                setPage(pageNum);
+                setTotalPages(productsResponse.totalPages);
+            }
 
         } catch (error) {
             console.error("Error fetching category data:", error);

@@ -17,6 +17,7 @@ export default function CartScreen() {
     const [showCouponInput, setShowCouponInput] = useState(false);
     const [couponCode, setCouponCode] = useState("");
     const [couponError, setCouponError] = useState("");
+    const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
 
     const subtotal = items.reduce(
         (sum, item) => {
@@ -41,11 +42,14 @@ export default function CartScreen() {
         }
 
         try {
+            setIsApplyingCoupon(true);
             await applyCoupon(code);
             setShowCouponInput(false);
             setCouponCode("");
         } catch (error: any) {
             setCouponError(error.response?.data?.message || "Invalid coupon code");
+        } finally {
+            setIsApplyingCoupon(false);
         }
     };
 
@@ -81,29 +85,34 @@ ${items.map(item => `- ${item.Product.name} (Qty: ${item.quantity})`).join('\n')
 
         return (
             <View style={styles.cartItemContainer}>
-                <View style={styles.imageContainer}>
-                    {product.imageUrls && product.imageUrls.length > 0 ? (
-                        <Image source={{ uri: product.imageUrls[0] }} style={styles.image} resizeMode="cover" />
-                    ) : (
-                        <View style={styles.placeholder}>
-                            <Ionicons name="image-outline" size={24} color={colors.textLight} />
-                        </View>
-                    )}
-                </View>
+                <TouchableOpacity
+                    style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}
+                    onPress={() => router.push(`/(retailer)/product/${product.id}`)}
+                >
+                    <View style={styles.imageContainer}>
+                        {product.imageUrls && product.imageUrls.length > 0 ? (
+                            <Image source={{ uri: product.imageUrls[0] }} style={styles.image} resizeMode="cover" />
+                        ) : (
+                            <View style={styles.placeholder}>
+                                <Ionicons name="image-outline" size={24} color={colors.textLight} />
+                            </View>
+                        )}
+                    </View>
 
-                <View style={styles.itemDetails}>
-                    <Text style={styles.itemName} numberOfLines={2}>
-                        {product.name}
-                    </Text>
-                    {product.salt && product.salt.length > 0 && (
-                        <Text style={styles.itemSalt} numberOfLines={1}>
-                            {product.salt[0]}
+                    <View style={styles.itemDetails}>
+                        <Text style={styles.itemName} numberOfLines={2}>
+                            {product.name}
                         </Text>
-                    )}
-                    <Text style={styles.itemPrice}>
-                        ₹{currentPrice}
-                    </Text>
-                </View>
+                        {product.salt && product.salt.length > 0 && (
+                            <Text style={styles.itemSalt} numberOfLines={1}>
+                                {product.salt[0]}
+                            </Text>
+                        )}
+                        <Text style={styles.itemPrice}>
+                            ₹{currentPrice}
+                        </Text>
+                    </View>
+                </TouchableOpacity>
 
                 <View style={styles.actionsContainer}>
                     <QuantitySelector
@@ -206,10 +215,15 @@ ${items.map(item => `- ${item.Product.name} (Qty: ${item.quantity})`).join('\n')
                                                         autoCorrect={false}
                                                     />
                                                     <TouchableOpacity
-                                                        style={styles.applyButton}
+                                                        style={[styles.applyButton, isApplyingCoupon && { opacity: 0.7 }]}
                                                         onPress={handleApplyCoupon}
+                                                        disabled={isApplyingCoupon}
                                                     >
-                                                        <Text style={styles.applyButtonText}>Apply</Text>
+                                                        {isApplyingCoupon ? (
+                                                            <ActivityIndicator size="small" color={colors.white} />
+                                                        ) : (
+                                                            <Text style={styles.applyButtonText}>Apply</Text>
+                                                        )}
                                                     </TouchableOpacity>
                                                 </View>
                                                 {couponError ? (

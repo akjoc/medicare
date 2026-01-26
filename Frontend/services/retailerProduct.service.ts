@@ -41,13 +41,13 @@ export const retailerProductService = {
         }
     },
 
-    getProductsByCategory: async (categoryId: string, page = 1, limit = 10): Promise<ProductResponse> => {
+    getProductsByCategory: async (categoryName: string, page = 1, limit = 10): Promise<ProductResponse> => {
         try {
-            // Try CategoryId (capitalized) as backend might expect this format
+            // Use 'category' query param with the name
             const response = await privateClient.get(ENDPOINTS.GET_PRODUCTS, {
-                params: { CategoryId: categoryId, page, limit }
+                params: { category: categoryName, page, limit }
             });
-            console.log(`Fetching products for CategoryId: ${categoryId}, page: ${page}`);
+            console.log(`Fetching products for Category: ${categoryName}, page: ${page}`);
             return response.data;
         } catch (error) {
             throw error;

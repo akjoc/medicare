@@ -220,8 +220,8 @@ export default function HomeScreen() {
     const renderBanner = () => (
         <View style={styles.bannerContainer}>
             <View style={styles.bannerPlaceholder}>
-                <Text style={styles.bannerText}>Special Offer</Text>
-                <Text style={styles.bannerSubText}>Get Flat 20% OFF on First Order</Text>
+                <Text style={styles.bannerText}>Your B2B Partner</Text>
+                <Text style={styles.bannerSubText}>Get medicines at best prices</Text>
             </View>
         </View>
     );
@@ -277,7 +277,7 @@ export default function HomeScreen() {
                 scrollEventThrottle={400}
             >
                 {renderBanner()}
-                {renderQuickActions()}
+                {/* {renderQuickActions()} */}
 
                 {/* Dynamic Categories */}
                 {categories.map(category => {
