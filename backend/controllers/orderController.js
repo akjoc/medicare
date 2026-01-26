@@ -226,6 +226,12 @@ const placeOrder = async (req, res) => {
             return res.status(400).json({ error: 'Online payment is currently disabled' });
         }
 
+        console.log('Payment Config Used:', {
+            enabled: paymentConfig.advancePaymentDiscountEnabled,
+            type: paymentConfig.discountType,
+            value: paymentConfig.discountValue
+        });
+
         // 2. Fetch Retailer Details (Snapshot)
         const retailer = await Retailer.findOne({ where: { UserId: userId } });
         const retailerName = retailer ? retailer.ownerName : null;
