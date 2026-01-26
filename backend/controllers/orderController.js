@@ -147,9 +147,11 @@ const getCheckoutSummary = async (req, res) => {
         }
 
         // 5. Payment Method Discount (e.g. 5% for ONLINE)
+        // 5. Payment Method Discount (e.g. 5% for ONLINE)
         let paymentDiscount = 0;
         if (paymentMethod === 'ONLINE') {
-            paymentDiscount = (subTotal * 0.05); // 5%
+            const amountAfterCoupon = Math.max(0, subTotal - couponDiscount);
+            paymentDiscount = (amountAfterCoupon * 0.05); // 5%
         }
 
         // 6. Total
