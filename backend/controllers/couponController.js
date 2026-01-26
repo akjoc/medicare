@@ -183,25 +183,34 @@ const applyCoupon = async (req, res) => {
             }
         }
 
-        // Category Restriction Check
-        if (cartItems && coupon.categoryIds && coupon.categoryIds.length > 0) {
-            const allowedCategories = Array.isArray(coupon.categoryIds) ? coupon.categoryIds : JSON.parse(coupon.categoryIds || '[]');
+        // Calculate Eligible Subtotal
+        let eligibleSubtotal = orderValue;
+        const allowedCategories = Array.isArray(coupon.categoryIds) ? coupon.categoryIds : JSON.parse(coupon.categoryIds || '[]');
 
-            if (allowedCategories.length > 0) {
-                // Check if ANY item in the cart belongs to an allowed category
-                const hasEligibleItem = cartItems.some(item => {
-                    // item.categoryId can be a single ID or an array of IDs
-                    const itemCategoryIds = Array.isArray(item.categoryId) ? item.categoryId : [item.categoryId];
+        console.log(allowedCategories, "allowedCategories");
 
-                    // Check if there's any intersection between item's categories and allowed categories
-                    return itemCategoryIds.some(itemCatId =>
-                        allowedCategories.some(allowedCatId => String(allowedCatId) === String(itemCatId))
-                    );
-                });
+        if (allowedCategories.length > 0) {
+            if (!cartItems || !Array.isArray(cartItems) || cartItems.length === 0) {
+                return res.status(400).json({ error: 'This coupon requires cart details to calculate category-specific discounts' });
+            }
 
-                if (!hasEligibleItem) {
-                    return res.status(400).json({ error: 'This coupon requires purchase of items from specific categories' });
+            eligibleSubtotal = cartItems.reduce((acc, item) => {
+                // item.categoryId can be a single ID or an array of IDs
+                const itemCategoryIds = Array.isArray(item.categoryId) ? item.categoryId : [item.categoryId];
+                const isEligible = itemCategoryIds.some(itemCatId =>
+                    allowedCategories.some(allowedCatId => String(allowedCatId) === String(itemCatId))
+                );
+
+                if (isEligible) {
+                    // Use salePrice if available, otherwise use price
+                    const itemPrice = (item.salePrice !== undefined && item.salePrice !== null) ? item.salePrice : item.price;
+                    return acc + (Number(itemPrice) * (Number(item.quantity) || 1));
                 }
+                return acc;
+            }, 0);
+
+            if (eligibleSubtotal === 0) {
+                return res.status(400).json({ error: 'This coupon is not applicable to any items in your cart' });
             }
         }
 
@@ -210,12 +219,12 @@ const applyCoupon = async (req, res) => {
         if (coupon.type === 'flat') {
             discountAmount = coupon.value;
         } else if (coupon.type === 'percent') {
-            discountAmount = (orderValue * coupon.value) / 100;
+            discountAmount = (eligibleSubtotal * coupon.value) / 100;
         }
 
-        // Ensure discount doesn't exceed order value
-        if (discountAmount > orderValue) {
-            discountAmount = orderValue;
+        // Ensure discount doesn't exceed eligible subtotal
+        if (discountAmount > eligibleSubtotal) {
+            discountAmount = eligibleSubtotal;
         }
 
         res.json({
