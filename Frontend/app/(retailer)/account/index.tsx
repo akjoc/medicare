@@ -4,7 +4,7 @@ import { colors } from "@/styles/colors";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function RetailerAccountScreen() {
@@ -39,11 +39,22 @@ export default function RetailerAccountScreen() {
     };
 
     const handleCallSupport = () => {
-        Alert.alert("Call Support", `Calling ${APP_CONFIG.NAME} support...`);
+        Linking.openURL(`tel:${APP_CONFIG.SUPPORT_NUMBER}`).catch(() => {
+            Alert.alert("Error", "Could not open dialer");
+        });
     };
 
     const handleWhatsAppSupport = () => {
-        Alert.alert("WhatsApp", `Opening WhatsApp chat with ${APP_CONFIG.WHATSAPP_NUMBER}...`);
+        const url = `whatsapp://send?phone=${APP_CONFIG.WHATSAPP_NUMBER.replace('+', '')}`;
+        Linking.canOpenURL(url).then(supported => {
+            if (supported) {
+                return Linking.openURL(url);
+            } else {
+                return Linking.openURL(`https://wa.me/${APP_CONFIG.WHATSAPP_NUMBER.replace('+', '')}`);
+            }
+        }).catch(() => {
+            Alert.alert("Error", "Could not open WhatsApp");
+        });
     };
 
     if (!user) return null;

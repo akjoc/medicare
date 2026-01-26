@@ -132,7 +132,7 @@ export default function AccountScreen() {
 
                     <View style={styles.divider} />
 
-                    <TouchableOpacity
+                    {/* <TouchableOpacity
                         style={styles.menuItem}
                         onPress={() => router.push("/(admin)/account/app-settings")}
                     >
@@ -144,7 +144,7 @@ export default function AccountScreen() {
                             <Text style={styles.menuSubtitle}>Manage Tagline, Support Numbers</Text>
                         </View>
                         <Ionicons name="chevron-forward" size={20} color={colors.textLight} />
-                    </TouchableOpacity>
+                    </TouchableOpacity> */}
 
                     <View style={styles.divider} />
 

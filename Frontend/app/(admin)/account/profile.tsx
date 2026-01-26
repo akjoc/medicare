@@ -128,7 +128,7 @@ export default function ProfileScreen() {
                             <Text style={styles.helperText}>Email cannot be changed</Text>
                         </View>
 
-                        <View style={styles.inputGroup}>
+                        {/* <View style={styles.inputGroup}>
                             <Text style={styles.label}>Phone Number</Text>
                             <View style={styles.inputContainer}>
                                 <Ionicons name="call-outline" size={20} color={colors.textDark} />
@@ -141,7 +141,7 @@ export default function ProfileScreen() {
                                     placeholderTextColor={colors.textLight}
                                 />
                             </View>
-                        </View>
+                        </View> */}
                     </View>
                 </ScrollView>
 
