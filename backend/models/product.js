@@ -83,7 +83,7 @@ const Product = sequelize.define('Product', {
         allowNull: true
     },
     expiry: {
-        type: DataTypes.DATE, // or DATEONLY if time isn't needed, but DATE is standard
+        type: DataTypes.DATEONLY,
         allowNull: true
     }
 }, {

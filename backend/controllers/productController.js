@@ -761,8 +761,18 @@ const bulkUploadProducts = async (req, res) => {
                         // Excel date to JS Date: (value - 25569) * 86400 * 1000
                         expiryDate = new Date((rawExpiry - 25569) * 86400 * 1000);
                     } else {
-                        // Try string parse
-                        expiryDate = new Date(rawExpiry);
+                        // Try string parse. Supports: YYYY-MM-DD, DD-MM-YYYY, DD/MM/YYYY
+                        const dateStr = String(rawExpiry).trim();
+
+                        // Check for DD-MM-YYYY or DD/MM/YYYY format
+                        const dmyMatch = dateStr.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+                        if (dmyMatch) {
+                            // dmyMatch[1] = Day, dmyMatch[2] = Month, dmyMatch[3] = Year
+                            // Construct YYYY-MM-DD for Date constructor
+                            expiryDate = new Date(`${dmyMatch[3]}-${dmyMatch[2]}-${dmyMatch[1]}`);
+                        } else {
+                            expiryDate = new Date(dateStr);
+                        }
                     }
                     if (isNaN(expiryDate.getTime())) expiryDate = null;
                 }

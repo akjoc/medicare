@@ -8,7 +8,7 @@ const addExpiryColumn = async () => {
         const queryInterface = sequelize.getQueryInterface();
 
         await queryInterface.addColumn('Products', 'expiry', {
-            type: DataTypes.DATE,
+            type: DataTypes.DATEONLY,
             allowNull: true
         });
 
