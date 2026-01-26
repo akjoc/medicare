@@ -1,18 +1,24 @@
 import { APP_CONFIG } from "@/constants/app";
-import { MOCK_RETAILERS } from "@/data/mockData";
-import * as authService from "@/services/auth.service";
+import { getUser, logout, User } from "@/services/auth.service";
 import { colors } from "@/styles/colors";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function RetailerAccountScreen() {
     const router = useRouter();
+    const [user, setUser] = useState<User | null>(null);
 
-    // Using mock data for now - will be replaced with API call later
-    const retailer = MOCK_RETAILERS[0];
+    useEffect(() => {
+        loadUser();
+    }, []);
+
+    const loadUser = async () => {
+        const userData = await getUser();
+        setUser(userData);
+    };
 
     const handleLogout = () => {
         Alert.alert(
@@ -24,7 +30,7 @@ export default function RetailerAccountScreen() {
                     text: "Logout",
                     style: "destructive",
                     onPress: async () => {
-                        await authService.logout();
+                        await logout();
                         router.replace("/(auth)/login");
                     },
                 },
@@ -40,6 +46,10 @@ export default function RetailerAccountScreen() {
         Alert.alert("WhatsApp", `Opening WhatsApp chat with ${APP_CONFIG.WHATSAPP_NUMBER}...`);
     };
 
+    if (!user) return null;
+
+    const fullAddress = [user.address, user.city, user.state, user.zipCode].filter(Boolean).join(", ");
+
     return (
         <SafeAreaView style={styles.container}>
             <View style={styles.header}>
@@ -51,11 +61,11 @@ export default function RetailerAccountScreen() {
                 <View style={styles.card}>
                     <View style={styles.profileRow}>
                         <View style={styles.avatar}>
-                            <Text style={styles.avatarText}>{retailer.ownerName.charAt(0)}</Text>
+                            <Text style={styles.avatarText}>{(user.ownerName || user.name || "U").charAt(0).toUpperCase()}</Text>
                         </View>
                         <View style={styles.profileInfo}>
-                            <Text style={styles.profileName}>{retailer.ownerName}</Text>
-                            <Text style={styles.profileShop}>{retailer.shopName}</Text>
+                            <Text style={styles.profileName}>{user.ownerName || user.name}</Text>
+                            <Text style={styles.profileShop}>{user.shopName || "Retailer"}</Text>
                         </View>
                     </View>
 
@@ -64,15 +74,15 @@ export default function RetailerAccountScreen() {
                     <View style={styles.contactInfo}>
                         <View style={styles.contactItem}>
                             <Ionicons name="call-outline" size={16} color={colors.textLight} />
-                            <Text style={styles.contactText}>{retailer.phone}</Text>
+                            <Text style={styles.contactText}>{user.phone || "No phone"}</Text>
                         </View>
                         <View style={styles.contactItem}>
                             <Ionicons name="mail-outline" size={16} color={colors.textLight} />
-                            <Text style={styles.contactText}>{retailer.email}</Text>
+                            <Text style={styles.contactText}>{user.email}</Text>
                         </View>
                         <View style={styles.contactItem}>
                             <Ionicons name="location-outline" size={16} color={colors.textLight} />
-                            <Text style={styles.contactText} numberOfLines={1}>{retailer.address}</Text>
+                            <Text style={styles.contactText} numberOfLines={2}>{fullAddress || "No address"}</Text>
                         </View>
                     </View>
                 </View>

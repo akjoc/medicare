@@ -207,6 +207,10 @@ export default function ProductDetailsScreen() {
                         <Text style={styles.detailLabel}>Category</Text>
                         <Text style={styles.detailValue}>{category?.name}</Text>
                     </View>
+                    <View style={styles.detailRow}>
+                        <Text style={styles.detailLabel}>Expiry</Text>
+                        <Text style={styles.detailValue}>{product.expiry || "N/A"}</Text>
+                    </View>
                 </View>
             </ScrollView>
 

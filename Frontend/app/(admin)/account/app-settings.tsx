@@ -1,8 +1,9 @@
 import { APP_CONFIG } from "@/constants/app";
+import { AppSettingsService } from "@/services/appSettings.service";
 import { colors } from "@/styles/colors";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -13,28 +14,51 @@ import {
     Text,
     TextInput,
     TouchableOpacity,
-    View,
+    View
 } from "react-native";
 
 export default function AppSettingsScreen() {
     const router = useRouter();
     const [saving, setSaving] = useState(false);
+    const [loading, setLoading] = useState(true);
 
-    // Initial state from constants (Simulating fetching current config)
     const [config, setConfig] = useState({
+        appName: APP_CONFIG.NAME,
         tagline: APP_CONFIG.TAGLINE,
-        whatsapp: APP_CONFIG.WHATSAPP_NUMBER,
-        call: "+919999999999", // Initial mock value as it wasn't in APP_CONFIG
+        whatsappNumber: APP_CONFIG.WHATSAPP_NUMBER,
+        callSupportNumber: "+919999999999",
+        gstNumber: APP_CONFIG.GST_NUMBER,
     });
+
+    useEffect(() => {
+        fetchSettings();
+    }, []);
+
+    const fetchSettings = async () => {
+        setLoading(true);
+        try {
+            const settings = await AppSettingsService.getSettings();
+            if (settings) {
+                setConfig({
+                    appName: settings.appName || APP_CONFIG.NAME,
+                    tagline: settings.tagline || APP_CONFIG.TAGLINE,
+                    whatsappNumber: settings.whatsappNumber || APP_CONFIG.WHATSAPP_NUMBER,
+                    callSupportNumber: settings.callSupportNumber || "+919999999999",
+                    gstNumber: settings.gstNumber || APP_CONFIG.GST_NUMBER,
+                });
+            }
+        } catch (error) {
+            console.error("Failed to fetch settings:", error);
+            // Fallback to constants if API fails
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const handleSave = async () => {
         setSaving(true);
         try {
-            // Simulate API call
-            await new Promise(resolve => setTimeout(resolve, 1000));
-
-            // In a real app: await settingsService.updateAppConfig(config);
-
+            await AppSettingsService.updateSettings(config);
             Alert.alert("Success", "App configuration updated successfully");
             router.back();
         } catch (error) {
@@ -44,6 +68,23 @@ export default function AppSettingsScreen() {
             setSaving(false);
         }
     };
+
+    if (loading) {
+        return (
+            <View style={styles.container}>
+                <View style={styles.header}>
+                    <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+                        <Ionicons name="arrow-back" size={24} color={colors.textDark} />
+                    </TouchableOpacity>
+                    <Text style={styles.title}>App Configuration</Text>
+                    <View style={{ width: 40 }} />
+                </View>
+                <View style={styles.center}>
+                    <ActivityIndicator size="large" color={colors.primary} />
+                </View>
+            </View>
+        );
+    }
 
     return (
         <View style={styles.container}>
@@ -65,6 +106,20 @@ export default function AppSettingsScreen() {
                         <Text style={styles.sectionTitle}>General Settings</Text>
                         <View style={styles.card}>
                             <View style={styles.inputGroup}>
+                                <Text style={styles.label}>App Name</Text>
+                                <View style={styles.inputContainer}>
+                                    <Ionicons name="apps-outline" size={20} color={colors.textLight} />
+                                    <TextInput
+                                        style={styles.input}
+                                        value={config.appName}
+                                        onChangeText={(text) => setConfig({ ...config, appName: text })}
+                                        placeholder="Enter App Name"
+                                        placeholderTextColor={colors.textLight}
+                                    />
+                                </View>
+                            </View>
+
+                            <View style={[styles.inputGroup, { marginTop: 16 }]}>
                                 <Text style={styles.label}>App Tagline</Text>
                                 <View style={styles.inputContainer}>
                                     <Ionicons name="text-outline" size={20} color={colors.textLight} />
@@ -78,6 +133,21 @@ export default function AppSettingsScreen() {
                                 </View>
                                 <Text style={styles.helperText}>Visible on the login screen and header</Text>
                             </View>
+
+                            <View style={[styles.inputGroup, { marginTop: 16 }]}>
+                                <Text style={styles.label}>GST Number</Text>
+                                <View style={styles.inputContainer}>
+                                    <Ionicons name="document-text-outline" size={20} color={colors.textLight} />
+                                    <TextInput
+                                        style={styles.input}
+                                        value={config.gstNumber}
+                                        onChangeText={(text) => setConfig({ ...config, gstNumber: text })}
+                                        placeholder="Enter GST Number"
+                                        autoCapitalize="characters"
+                                        placeholderTextColor={colors.textLight}
+                                    />
+                                </View>
+                            </View>
                         </View>
                     </View>
 
@@ -90,8 +160,8 @@ export default function AppSettingsScreen() {
                                     <Ionicons name="logo-whatsapp" size={20} color={colors.textLight} />
                                     <TextInput
                                         style={styles.input}
-                                        value={config.whatsapp}
-                                        onChangeText={(text) => setConfig({ ...config, whatsapp: text })}
+                                        value={config.whatsappNumber}
+                                        onChangeText={(text) => setConfig({ ...config, whatsappNumber: text })}
                                         placeholder="+91..."
                                         keyboardType="phone-pad"
                                         placeholderTextColor={colors.textLight}
@@ -105,8 +175,8 @@ export default function AppSettingsScreen() {
                                     <Ionicons name="call-outline" size={20} color={colors.textLight} />
                                     <TextInput
                                         style={styles.input}
-                                        value={config.call}
-                                        onChangeText={(text) => setConfig({ ...config, call: text })}
+                                        value={config.callSupportNumber}
+                                        onChangeText={(text) => setConfig({ ...config, callSupportNumber: text })}
                                         placeholder="+91..."
                                         keyboardType="phone-pad"
                                         placeholderTextColor={colors.textLight}
@@ -236,6 +306,11 @@ const styles = StyleSheet.create({
     },
     saveButtonDisabled: {
         opacity: 0.7,
+    },
+    center: {
+        flex: 1,
+        justifyContent: "center",
+        alignItems: "center",
     },
     saveButtonText: {
         color: colors.white,

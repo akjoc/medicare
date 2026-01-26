@@ -45,6 +45,7 @@ export default function ProductForm({
         dosage: initialValues?.dosage || "",
         packing: initialValues?.packing || "",
         companyInput: initialValues?.companies?.[0] || "", // Helper state for single input
+        expiry: initialValues?.expiry || "",
     });
 
     const [errors, setErrors] = useState<Record<string, string>>({});
@@ -110,6 +111,7 @@ export default function ProductForm({
                 buyingPrice: formData.buyingPrice ? Number(formData.buyingPrice) : undefined,
                 dosage: formData.dosage || undefined,
                 packing: formData.packing || undefined,
+                expiry: formData.expiry || undefined,
             });
         }
     };
@@ -371,6 +373,17 @@ export default function ProductForm({
                         />
                         {errors.stock && <Text style={styles.errorText}>{errors.stock}</Text>}
                     </View>
+                </View>
+
+                <View style={styles.inputContainer}>
+                    <Text style={styles.label}>Expiry Date</Text>
+                    <TextInput
+                        style={styles.input}
+                        value={formData.expiry}
+                        onChangeText={(text) => setFormData(prev => ({ ...prev, expiry: text }))}
+                        placeholder="DD-MM-YYYY"
+                        placeholderTextColor={colors.textLight}
+                    />
                 </View>
 
                 <View style={styles.inputContainer}>

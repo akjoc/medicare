@@ -9,6 +9,19 @@ export interface User {
   email: string;
   role: "admin" | "retailer";
   token?: string;
+  // Retailer specific fields
+  address?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  shopName?: string;
+  ownerName?: string;
+  phone?: string;
+  drugLicenseNumber?: string;
+  gst?: string;
+  rating?: number;
+  isActive?: boolean;
+  status?: string;
 }
 
 export async function login(email: string, password: string): Promise<User> {

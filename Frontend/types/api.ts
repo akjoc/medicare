@@ -18,6 +18,7 @@ export interface APIProduct {
     status?: string;
     createdAt?: string;
     updatedAt?: string;
+    expiry?: string;
 }
 
 export interface APICategory {

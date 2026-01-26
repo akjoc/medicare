@@ -9,6 +9,9 @@ export default function ProductsLayout() {
             <Stack.Screen name="categories/index" />
             <Stack.Screen name="categories/create" />
             <Stack.Screen name="categories/[id]" />
+            <Stack.Screen name="companies/index" />
+            <Stack.Screen name="companies/create" />
+            <Stack.Screen name="companies/[id]" />
         </Stack>
     );
 }

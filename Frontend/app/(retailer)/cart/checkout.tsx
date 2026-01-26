@@ -1,6 +1,7 @@
 import { APP_CONFIG } from "@/constants/app";
 import { useCart } from "@/context/CartContext";
 import { RetailerPaymentConfiguration } from "@/data/paymentMethods";
+import { getUser } from "@/services/auth.service";
 import { CreateOrderPayload, OrderService } from "@/services/order.service";
 import { PaymentService } from "@/services/payment.service";
 import { colors } from "@/styles/colors";
@@ -16,6 +17,7 @@ import {
     ScrollView,
     StyleSheet,
     Text,
+    TextInput,
     TouchableOpacity,
     View,
 } from "react-native";
@@ -32,11 +34,16 @@ export default function CheckoutScreen() {
     const [paymentConfig, setPaymentConfig] = useState<RetailerPaymentConfiguration | null>(null);
     const [configLoading, setConfigLoading] = useState(true);
 
+    // State for user and address
+    const [user, setUser] = useState<any>(null);
+    const [deliveryAddress, setDeliveryAddress] = useState("");
+
     useEffect(() => {
-        loadPaymentConfig();
+        loadData();
     }, []);
 
-    const loadPaymentConfig = async () => {
+    const loadData = async () => {
+        // Load Payment Config
         try {
             const config = await PaymentService.getRetailerConfiguration();
             setPaymentConfig(config);
@@ -44,6 +51,27 @@ export default function CheckoutScreen() {
             console.error("Failed to load payment config", error);
         } finally {
             setConfigLoading(false);
+        }
+
+        // Load User for Address
+        try {
+            const userData = await getUser();
+            setUser(userData);
+            if (userData) {
+                const parts = [
+                    userData.address,
+                    userData.city,
+                    userData.state,
+                    userData.zipCode
+                ].filter(Boolean);
+                if (parts.length > 0) {
+                    setDeliveryAddress(parts.join(", "));
+                } else {
+                    setDeliveryAddress("Jaipur, Rajasthan"); // Fallback
+                }
+            }
+        } catch (e) {
+            console.error(e);
         }
     };
 
@@ -72,17 +100,23 @@ export default function CheckoutScreen() {
 
     const totalAmount = Math.max(0, baseForPrepaidDiscount - prepaidDiscount);
 
-    const handleAddressChange = () => {
-        Alert.alert("Change Address", "Address management feature coming soon!");
-    };
+    // Replaced handleAddressChange with direct edit
+    // const handleAddressChange = () => {
+    //     Alert.alert("Change Address", "Address management feature coming soon!");
+    // };
 
     const handlePlaceOrder = async () => {
         if (!items.length) return;
 
+        if (!deliveryAddress.trim()) {
+            Alert.alert("Error", "Please enter a delivery address");
+            return;
+        }
+
         setLoading(true);
         try {
             const orderData: CreateOrderPayload = {
-                address: "jaipur", // Static for now as per user request, can be dynamic later
+                address: deliveryAddress, // Using dynamic deliveryAddress
                 paymentMethod: paymentMethod === "COD" ? "COD" : "ONLINE",
                 cartItems: items.map(item => ({
                     productId: item.productId,
@@ -172,14 +206,15 @@ Can you offer any extra discount on this?`;
                         <Ionicons name="location" size={18} color={colors.primary} />
                         <Text style={styles.cardTitle}>Delivery Address</Text>
                     </View>
-                    <Text style={styles.addressText}>
-                        Medicare Pharmacy, Shop No. 5,{'\n'}
-                        Main Market, Sector 15,{'\n'}
-                        Gurgaon, Haryana - 122001
-                    </Text>
-                    <TouchableOpacity onPress={handleAddressChange}>
-                        <Text style={styles.changeLink}>Change Address</Text>
-                    </TouchableOpacity>
+                    <TextInput
+                        style={styles.addressInput}
+                        value={deliveryAddress}
+                        onChangeText={setDeliveryAddress}
+                        multiline
+                        placeholder="Enter delivery address"
+                        placeholderTextColor={colors.textLight}
+                    />
+                    <Text style={styles.helperText}>Tap to edit address</Text>
                 </View>
 
                 {/* Order Items */}
@@ -453,19 +488,24 @@ const styles = StyleSheet.create({
         marginBottom: 12,
     },
 
-    // Address
-    addressText: {
+    addressInput: {
         fontSize: 14,
-        color: colors.textLight,
+        color: colors.textDark,
         lineHeight: 20,
-        marginBottom: 12,
+        marginBottom: 8,
+        borderWidth: 1,
+        borderColor: colors.border,
+        borderRadius: 8,
+        padding: 12,
+        backgroundColor: colors.background,
+        textAlignVertical: 'top',
+        minHeight: 80,
     },
-    changeLink: {
-        color: colors.primary,
-        fontWeight: "600",
-        fontSize: 14,
+    helperText: {
+        fontSize: 12,
+        color: colors.textLight,
+        fontStyle: 'italic',
     },
-
     // Order Items
     orderItem: {
         flexDirection: "row",

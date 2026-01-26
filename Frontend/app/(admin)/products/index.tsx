@@ -201,6 +201,13 @@ export default function ProductsScreen() {
                 >
                     <Ionicons name="grid-outline" size={24} color={colors.primary} />
                 </TouchableOpacity>
+
+                <TouchableOpacity
+                    style={styles.iconButton}
+                    onPress={() => router.push("/(admin)/products/companies")}
+                >
+                    <Ionicons name="business-outline" size={24} color={colors.primary} />
+                </TouchableOpacity>
             </View>
 
             {loading && !loadingMore ? (

@@ -49,4 +49,13 @@ export const ENDPOINTS = {
     UPDATE_PAYMENT_STATUS: (id: string) => `/orders/${id}/payment-status`,
     //Rating Functionality
     ORDER_RETAILER_RATING: (id: string) => `orders/${id}/rate`,
+    //Company Functionality
+    CREATE_COMPANY: "/companies",
+    GET_COMPANIES: "/companies",
+    GET_COMPANY_BY_ID: (id: string) => `/companies/${id}`,
+    UPDATE_COMPANY: (id: string) => `/companies/${id}`,
+    DELETE_COMPANY: (id: string) => `/companies/${id}`,
+    //App Settings
+    GET_APP_SETTINGS: "/app-settings",
+    UPDATE_APP_SETTINGS: "/app-settings",
 } as const;

@@ -25,6 +25,7 @@ export interface Product {
     createdAt: string;
     dosage?: string;
     packing?: string;
+    expiry?: string;
 }
 
 export const MOCK_CATEGORIES: Category[] = [];
