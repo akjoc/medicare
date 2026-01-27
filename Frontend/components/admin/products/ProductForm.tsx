@@ -89,7 +89,7 @@ export default function ProductForm({
         if (!formData.name.trim()) newErrors.name = "Product name is required";
         if (formData.categoryIds.length === 0) newErrors.categoryIds = "At least one category is required";
         if (!formData.price || isNaN(Number(formData.price))) newErrors.price = "Valid price is required";
-        // REMOVED: categoryIds, stock, sku validations as requested
+        if (!formData.sku || !formData.sku.trim()) newErrors.sku = "SKU is required";
 
 
         setErrors(newErrors);
@@ -351,7 +351,7 @@ export default function ProductForm({
 
                 <View style={styles.row}>
                     <View style={[styles.inputContainer, { flex: 1 }]}>
-                        <Text style={styles.label}>SKU</Text>
+                        <Text style={styles.label}>SKU <Text style={styles.required}>*</Text></Text>
                         <TextInput
                             style={[styles.input, errors.sku && styles.inputError]}
                             value={formData.sku}
