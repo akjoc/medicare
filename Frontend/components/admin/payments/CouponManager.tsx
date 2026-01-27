@@ -6,7 +6,8 @@ import { CouponService } from "@/services/coupon.service";
 import { retailerService } from "@/services/retailer.service";
 import { colors } from "@/styles/colors";
 import { Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useState } from "react";
+import { useFocusEffect } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -255,9 +256,11 @@ export default function CouponManager() {
     const [modalVisible, setModalVisible] = useState(false);
     const [selectedCoupon, setSelectedCoupon] = useState<Coupon | null>(null);
 
-    useEffect(() => {
-        loadData();
-    }, []);
+    useFocusEffect(
+        useCallback(() => {
+            loadData();
+        }, [])
+    );
 
     const loadData = async (isLoadMore = false) => {
         if (!isLoadMore) {

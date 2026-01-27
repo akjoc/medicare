@@ -3,15 +3,21 @@ import { APP_CONFIG } from "@/constants/app";
 import { CartItem, useCart } from "@/context/CartContext";
 import { colors } from "@/styles/colors";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useState } from "react";
 import { ActivityIndicator, FlatList, Image, Linking, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 
 export default function CartScreen() {
-    const { items, isLoading, appliedCoupon, updateQuantity, removeFromCart, clearCart, applyCoupon, removeCoupon } = useCart();
+    const { items, isLoading, appliedCoupon, updateQuantity, removeFromCart, clearCart, applyCoupon, removeCoupon, refreshCart } = useCart();
     const router = useRouter();
+
+    useFocusEffect(
+        useCallback(() => {
+            refreshCart?.();
+        }, [])
+    );
 
     // Local state for coupon input
     const [showCouponInput, setShowCouponInput] = useState(false);

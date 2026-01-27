@@ -3,7 +3,8 @@ import { PaymentService } from "@/services/payment.service";
 import { colors } from "@/styles/colors";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from 'expo-image-picker';
-import React, { useEffect, useState } from "react";
+import { useFocusEffect } from "expo-router";
+import React, { useCallback, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -23,9 +24,11 @@ export default function PaymentConfigurationScreen() {
     const [saving, setSaving] = useState(false);
     const [qrImage, setQrImage] = useState<any>(null);
 
-    useEffect(() => {
-        loadConfig();
-    }, []);
+    useFocusEffect(
+        useCallback(() => {
+            loadConfig();
+        }, [])
+    );
 
     const loadConfig = async () => {
         setLoading(true);

@@ -1,8 +1,8 @@
 import * as authService from "@/services/auth.service";
 import { colors } from "@/styles/colors";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -19,9 +19,11 @@ export default function AccountScreen() {
     const [user, setUser] = useState<authService.User | null>(null);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        loadUserProfile();
-    }, []);
+    useFocusEffect(
+        useCallback(() => {
+            loadUserProfile();
+        }, [])
+    );
 
     const loadUserProfile = async () => {
         try {

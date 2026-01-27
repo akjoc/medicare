@@ -73,37 +73,10 @@ export default function ProductsScreen() {
         }
     }, [debouncedSearchQuery, page]);
 
-    // Initial load
+    // Load products on focus (so it updates after create/edit/delete)
     useFocusEffect(
         useCallback(() => {
             loadData(false);
-        }, [debouncedSearchQuery]) // Depend only on query changing, handled by useEffect above for initial trigger? 
-        // Actually, let's keep it simple. useFocusEffect with useCallback dependency on debouncedSearchQuery might loop if loadData changes?
-        // Let's refactor slightly to be safer
-    );
-
-    // Better Focus Effect handling to avoid loops/stale closures
-    useFocusEffect(
-        useCallback(() => {
-            // When screen focuses, if we have a query, it might trigger. 
-            // We want to refresh list on focus essentially.
-            setPage(1);
-
-            const fetchInitial = async () => {
-                setLoading(true);
-                try {
-                    const response = debouncedSearchQuery.trim()
-                        ? await productService.searchProducts(debouncedSearchQuery.trim(), 1)
-                        : await productService.getProducts(1);
-                    setProducts(response.products);
-                    setTotalPages(response.totalPages);
-                } catch (error) {
-                    console.error(error);
-                } finally {
-                    setLoading(false);
-                }
-            };
-            fetchInitial();
         }, [debouncedSearchQuery])
     );
 

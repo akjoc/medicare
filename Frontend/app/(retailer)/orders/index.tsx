@@ -1,8 +1,8 @@
 import { OrderService } from "@/services/order.service";
 import { colors } from "@/styles/colors";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useState } from "react";
 import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -42,9 +42,11 @@ export default function RetailerOrdersScreen() {
         }
     }, []);
 
-    useEffect(() => {
-        fetchOrders();
-    }, [fetchOrders]);
+    useFocusEffect(
+        useCallback(() => {
+            fetchOrders();
+        }, [fetchOrders])
+    );
 
     const onRefresh = () => {
         setRefreshing(true);

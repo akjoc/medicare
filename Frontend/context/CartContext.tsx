@@ -123,7 +123,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
                 await validateAndApplyCoupon(appliedCoupon.code, newItems);
             }
         } catch (error: any) {
-            Alert.alert("Error", error.response?.data?.message || "Failed to add to cart");
+            Alert.alert("Error", error.response?.data?.error || "Failed to add to cart");
         }
     };
 

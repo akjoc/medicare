@@ -130,17 +130,13 @@ export default function CheckoutScreen() {
                 couponCode: appliedCoupon?.code || null
             };
 
-            await OrderService.placeOrder(orderData);
+            const response = await OrderService.placeOrder(orderData);
 
-            Alert.alert("Success", "Order placed successfully!", [
-                {
-                    text: "OK",
-                    onPress: () => {
-                        clearCart();
-                        router.replace("/(retailer)/home");
-                    },
-                },
-            ]);
+            clearCart();
+            router.replace({
+                pathname: "/(retailer)/cart/success",
+                params: { orderId: response.orderId }
+            });
         } catch (error: any) {
             console.error("Place order failed:", error);
             const errorMessage = error.response?.data?.error || "Failed to place order. Please try again.";

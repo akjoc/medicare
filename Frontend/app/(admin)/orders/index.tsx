@@ -1,7 +1,7 @@
 import { OrderService } from "@/services/order.service";
 import { colors } from "@/styles/colors";
 import { Ionicons as Icon } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
     ActivityIndicator,
@@ -114,9 +114,12 @@ export default function OrdersScreen() {
     }, []);
 
     // Initial fetch and filter changes
-    useEffect(() => {
-        fetchOrders(1, debouncedSearch, statusFilter, true);
-    }, [debouncedSearch, statusFilter]);
+    // useFocusEffect handles initial load and revisit load
+    useFocusEffect(
+        useCallback(() => {
+            fetchOrders(1, debouncedSearch, statusFilter, true);
+        }, [debouncedSearch, statusFilter])
+    );
 
     const handleRefresh = () => {
         setRefreshing(true);

@@ -5,4 +5,7 @@ export const colors = {
     textDark: "#1C1C1E",
     textLight: "#6C757D",
     border: "#E0E0E0",
+    error: "#EF4444",
+    success: "#16A34A",
+    warning: "#F59E0B",
 };
