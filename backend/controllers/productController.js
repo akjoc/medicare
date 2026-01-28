@@ -42,15 +42,15 @@ const createProduct = async (req, res) => {
             targetCategoryIds = Array.isArray(categoryId) ? categoryId : [categoryId];
         }
 
-        if (targetCategoryIds.length === 0) {
-            // Delete uploaded images
-            if (req.files) {
-                for (const file of req.files) {
-                    await cloudinary.uploader.destroy(file.filename);
-                }
-            }
-            return res.status(400).json({ error: 'Please provide categoryIds (array) or categoryId' });
-        }
+        // if (targetCategoryIds.length === 0) {
+        //     // Delete uploaded images
+        //     if (req.files) {
+        //         for (const file of req.files) {
+        //             await cloudinary.uploader.destroy(file.filename);
+        //         }
+        //     }
+        //     return res.status(400).json({ error: 'Please provide categoryIds (array) or categoryId' });
+        // }
 
         // Validate Categories Exist
         const validCategoriesCount = await Category.count({ where: { id: targetCategoryIds } });
