@@ -106,28 +106,41 @@ export default function RetailerOrderDetailScreen() {
             setDownloading(true);
             const extension = order.invoiceUrl.split('.').pop()?.split('?')[0] || 'pdf';
             const filename = `invoice_${order.id}.${extension}`;
+            const fileUri = FileSystem.cacheDirectory + filename;
+
+            // 1. Download the file locally first
+            const downloadRes = await FileSystem.downloadAsync(order.invoiceUrl, fileUri);
+            if (downloadRes.status !== 200) {
+                throw new Error("Failed to download invoice file");
+            }
 
             // On Android, we can try to use SAF to save to a specific directory (like Downloads)
             if (Platform.OS === 'android') {
-                const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
-                if (permissions.granted) {
-                    const base64 = await FileSystem.readAsStringAsync(order.invoiceUrl, { encoding: FileSystem.EncodingType.Base64 });
-                    await FileSystem.StorageAccessFramework.createFileAsync(permissions.directoryUri, filename, 'application/pdf')
-                        .then(async (uri) => {
-                            await FileSystem.writeAsStringAsync(uri, base64, { encoding: FileSystem.EncodingType.Base64 });
-                            Alert.alert("Success", "Invoice downloaded to your selected folder.");
-                        })
-                        .catch(e => {
-                            console.error(e);
-                            Alert.alert("Error", "Failed to save file.");
-                        });
-                } else {
-                    // Fallback to regular share if permission denied
-                    await shareFile(order.invoiceUrl, filename);
+                try {
+                    const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+                    if (permissions.granted) {
+                        // Read from LOCAL fileUri
+                        const base64 = await FileSystem.readAsStringAsync(fileUri, { encoding: FileSystem.EncodingType.Base64 });
+                        await FileSystem.StorageAccessFramework.createFileAsync(permissions.directoryUri, filename, 'application/pdf')
+                            .then(async (uri) => {
+                                await FileSystem.writeAsStringAsync(uri, base64, { encoding: FileSystem.EncodingType.Base64 });
+                                Alert.alert("Success", "Invoice downloaded successfully.");
+                            })
+                            .catch(e => {
+                                console.error(e);
+                                Alert.alert("Error", "Failed to save file.");
+                            });
+                    } else {
+                        // Fallback to regular share if permission denied
+                        await shareFile(fileUri);
+                    }
+                } catch (e) {
+                    // Fallback to share if SAF fails
+                    await shareFile(fileUri);
                 }
             } else {
                 // iOS uses share sheet
-                await shareFile(order.invoiceUrl, filename);
+                await shareFile(fileUri);
             }
         } catch (error) {
             console.error("Download failed:", error);
@@ -137,16 +150,16 @@ export default function RetailerOrderDetailScreen() {
         }
     };
 
-    const shareFile = async (url: string, filename: string) => {
-        const fileUri = FileSystem.cacheDirectory + filename;
-        const downloadRes = await FileSystem.downloadAsync(url, fileUri);
-        if (downloadRes.status === 200) {
-            await Sharing.shareAsync(downloadRes.uri, {
-                mimeType: 'application/pdf',
-                dialogTitle: 'Download Invoice',
-                UTI: 'com.adobe.pdf'
-            });
+    const shareFile = async (fileUri: string) => {
+        if (!(await Sharing.isAvailableAsync())) {
+            Alert.alert("Error", "Sharing is not available on this device");
+            return;
         }
+        await Sharing.shareAsync(fileUri, {
+            mimeType: 'application/pdf',
+            dialogTitle: 'Download Invoice',
+            UTI: 'com.adobe.pdf'
+        });
     };
 
     return (

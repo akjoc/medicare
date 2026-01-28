@@ -3,8 +3,8 @@ import axios, { InternalAxiosRequestConfig } from "axios";
 import { router } from "expo-router";
 import { Alert } from "react-native";
 
-export const BASE_URL = "http://185.199.53.90:5000/api";
-// export const BASE_URL = "https://185.199.53.90/api";
+// export const BASE_URL = "http://185.199.53.90:5000/api";
+export const BASE_URL = "https://api.healthharbour.co.in/api";
 
 export const AUTH_TOKEN_KEY = "auth_token";
 export const USER_INFO_KEY = "user_info";

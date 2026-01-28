@@ -14,13 +14,20 @@ export default function CreateProductScreen() {
     const handleSubmit = async (data: Omit<Product, "id" | "createdAt">) => {
         setIsSubmitting(true);
         try {
+            console.log(data);
             await productService.createProduct(data);
             Alert.alert("Success", "Product created successfully", [
                 { text: "OK", onPress: () => router.back() }
             ]);
         } catch (error: any) {
             console.error("Create product error:", error);
-            const message = error.response?.data?.message || "Failed to create product";
+            if (error.response) {
+                console.log(error.response);
+                console.error("Error Response Data:", JSON.stringify(error.response.data, null, 2));
+                console.error("Error Response Status:", error.response.status);
+                console.error("Error Response Headers:", error.response.headers);
+            }
+            const message = error.response?.data?.error || "Failed to create product";
             Alert.alert("Error", message);
             setIsSubmitting(false);
         }

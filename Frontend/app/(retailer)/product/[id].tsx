@@ -8,13 +8,14 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Dimensions, FlatList, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 const { width } = Dimensions.get("window");
 
 export default function ProductDetailsScreen() {
     const { id } = useLocalSearchParams();
     const router = useRouter();
+    const insets = useSafeAreaInsets();
     const [activeSlide, setActiveSlide] = useState(0);
     const { addToCart, getItemQuantity, updateQuantity } = useCart();
 
@@ -88,6 +89,15 @@ export default function ProductDetailsScreen() {
         }
     };
 
+    // Help extract data from nested arrays if needed
+    const getFlattenedArray = (data: string[] | string[][] | undefined) => {
+        if (!data) return [];
+        return data.flat().filter(Boolean);
+    };
+
+    const saltDisplay = getFlattenedArray(product.salt);
+    const companyDisplay = product.Company?.name || getFlattenedArray(product.companies)[0] || "N/A";
+
     // Parse prices
     const price = Number(product.price);
     const salePrice = product.salePrice ? Number(product.salePrice) : 0;
@@ -95,14 +105,27 @@ export default function ProductDetailsScreen() {
 
     return (
         <View style={styles.container}>
-            <ScrollView contentContainerStyle={styles.scrollContent}>
-                {/* Header Back Button Overlay */}
+            {/* Sticky Header */}
+            <View style={[styles.header, { paddingTop: insets.top }]}>
                 <TouchableOpacity
-                    style={styles.backButton}
+                    style={styles.headerBackButton}
                     onPress={() => router.back()}
                 >
                     <Ionicons name="arrow-back" size={24} color={colors.textDark} />
                 </TouchableOpacity>
+                <Text style={styles.headerTitle} numberOfLines={1}>
+                    {product?.name || "Product Details"}
+                </Text>
+                <View style={{ width: 44 }} />
+            </View>
+
+            <ScrollView
+                contentContainerStyle={[
+                    styles.scrollContent,
+                    { paddingTop: insets.top + 60 }
+                ]}
+                showsVerticalScrollIndicator={false}
+            >
 
                 {/* Images Slider */}
                 <View style={styles.imageContainer}>
@@ -152,7 +175,7 @@ export default function ProductDetailsScreen() {
                     {/* Basic Info */}
                     <View style={styles.headerRow}>
                         <View style={styles.categoryBadge}>
-                            <Text style={styles.categoryText}>{category?.name || "Medicine"}</Text>
+                            <Text style={styles.categoryText}>{product.Categories?.[0]?.name || category?.name || "Medicine"}</Text>
                         </View>
                         {isOutOfStock ? (
                             <View style={[styles.stockBadge, { backgroundColor: "#FEE2E2" }]}>
@@ -160,62 +183,91 @@ export default function ProductDetailsScreen() {
                             </View>
                         ) : (
                             <View style={[styles.stockBadge, { backgroundColor: "#DCFCE7" }]}>
-                                <Text style={[styles.stockText, { color: "#166534" }]}>In Stock: {product.stock}</Text>
+                                <Text style={[styles.stockText, { color: "#166534" }]}>In Stock</Text>
                             </View>
                         )}
                     </View>
 
                     <Text style={styles.name}>{product.name}</Text>
-                    {product.salt && product.salt.length > 0 && (
-                        <Text style={styles.salt}>{product.salt[0]}</Text>
+                    {saltDisplay.length > 0 && (
+                        <View style={styles.saltContainer}>
+                            <Text style={styles.saltLabel}>Composition:</Text>
+                            <Text style={styles.saltText}>{saltDisplay.join(", ")}</Text>
+                        </View>
                     )}
 
-                    <View style={styles.priceRow}>
-                        <View>
-                            <Text style={styles.label}>Price</Text>
-                            <View style={styles.priceContainer}>
-                                <Text style={styles.price}>₹{currentPrice}</Text>
-                                {salePrice > 0 && (
-                                    <Text style={styles.originalPrice}>₹{price}</Text>
-                                )}
+                    <View style={styles.priceSection}>
+                        <View style={styles.priceRow}>
+                            <View>
+                                <Text style={styles.label}>Retailer Price</Text>
+                                <View style={styles.priceContainer}>
+                                    <Text style={styles.price}>₹{currentPrice}</Text>
+                                    {salePrice > 0 && (
+                                        <Text style={styles.originalPrice}>₹{price}</Text>
+                                    )}
+                                </View>
+                            </View>
+                            {salePrice > 0 && (
+                                <View style={styles.discountTag}>
+                                    <Text style={styles.discountTagText}>
+                                        {Math.round(((price - salePrice) / price) * 100)}% Save
+                                    </Text>
+                                </View>
+                            )}
+                        </View>
+                    </View>
+
+                    {/* Product Highlights */}
+                    <View style={styles.highlightGrid}>
+                        <View style={styles.highlightItem}>
+                            <Ionicons name="apps-outline" size={20} color={colors.primary} />
+                            <View>
+                                <Text style={styles.highlightLabel}>Packing</Text>
+                                <Text style={styles.highlightValue}>{product.packing || "N/A"}</Text>
                             </View>
                         </View>
-                        {salePrice > 0 && (
-                            <View style={styles.discountTag}>
-                                <Text style={styles.discountTagText}>
-                                    {Math.round(((price - salePrice) / price) * 100)}% Save
-                                </Text>
+                        <View style={styles.highlightItem}>
+                            <Ionicons name="thermometer-outline" size={20} color={colors.primary} />
+                            <View>
+                                <Text style={styles.highlightLabel}>Dosage</Text>
+                                <Text style={styles.highlightValue}>{product.dosage || "N/A"}</Text>
                             </View>
-                        )}
+                        </View>
                     </View>
 
-                    <View style={styles.divider} />
-
-                    {/* Description */}
-                    <Text style={styles.sectionTitle}>Description</Text>
-                    <Text style={styles.description}>{product.description || "No description available."}</Text>
-
-                    <View style={styles.divider} />
-
-                    {/* Additional Details */}
-                    <Text style={styles.sectionTitle}>Product Details</Text>
-                    <View style={styles.detailRow}>
-                        <Text style={styles.detailLabel}>SKU</Text>
-                        <Text style={styles.detailValue}>{product.sku || "N/A"}</Text>
+                    <View style={styles.cardSection}>
+                        <Text style={styles.sectionTitle}>Manufacturer</Text>
+                        <View style={styles.manufacturerInfo}>
+                            <Ionicons name="business-outline" size={20} color={colors.textLight} />
+                            <Text style={styles.manufacturerName}>{companyDisplay}</Text>
+                        </View>
                     </View>
-                    <View style={styles.detailRow}>
-                        <Text style={styles.detailLabel}>Category</Text>
-                        <Text style={styles.detailValue}>{category?.name}</Text>
+
+                    <View style={styles.cardSection}>
+                        <Text style={styles.sectionTitle}>Product Description</Text>
+                        <Text style={styles.description}>{product.description || "No additional description provided for this product. Please contact the manufacturer for specific details."}</Text>
                     </View>
-                    <View style={styles.detailRow}>
-                        <Text style={styles.detailLabel}>Expiry</Text>
-                        <Text style={styles.detailValue}>{product.expiry || "N/A"}</Text>
+
+                    <View style={styles.cardSection}>
+                        <Text style={styles.sectionTitle}>Additional Information</Text>
+                        <View style={styles.detailRow}>
+                            <Text style={styles.detailLabel}>SKU</Text>
+                            <Text style={styles.detailValue}>{product.sku || "N/A"}</Text>
+                        </View>
+                        <View style={styles.detailRow}>
+                            <Text style={styles.detailLabel}>Shelf Life</Text>
+                            <Text style={styles.detailValue}>{product.expiry || "Not mentioned"}</Text>
+                        </View>
+                        <View style={styles.detailRow}>
+                            <Text style={styles.detailLabel}>Stock Available</Text>
+                            <Text style={styles.detailValue}>{product.stock} units</Text>
+                        </View>
                     </View>
                 </View>
             </ScrollView>
 
             {/* Bottom Action Bar */}
-            <View style={styles.footer}>
+            <View style={[styles.footer, { paddingBottom: insets.bottom - 25 || 20 }]}>
                 {isOutOfStock ? (
                     <TouchableOpacity
                         style={[styles.addToCartButton, styles.disabledButton]}
@@ -226,8 +278,8 @@ export default function ProductDetailsScreen() {
                 ) : quantity > 0 ? (
                     <View style={styles.quantityContainer}>
                         <View style={{ flex: 1 }}>
-                            <Text style={styles.quantityLabel}>Quantity</Text>
-                            <Text style={styles.quantityTotal}>Total: ₹{currentPrice * quantity}</Text>
+                            <Text style={styles.quantityLabel}>Cart Total</Text>
+                            <Text style={styles.quantityTotal}>₹{(currentPrice * quantity).toFixed(2)}</Text>
                         </View>
                         <QuantitySelector
                             quantity={quantity}
@@ -263,33 +315,45 @@ const styles = StyleSheet.create({
     scrollContent: {
         paddingBottom: 100,
     },
-    backButton: {
+    header: {
         position: "absolute",
-        top: 50,
-        left: 20,
-        zIndex: 10,
-        width: 40,
-        height: 40,
-        borderRadius: 20,
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 100,
         backgroundColor: colors.white,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        paddingHorizontal: 8,
+        paddingBottom: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: "rgba(0,0,0,0.05)",
+    },
+    headerBackButton: {
+        width: 44,
+        height: 44,
         justifyContent: "center",
         alignItems: "center",
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 3,
+    },
+    headerTitle: {
+        fontSize: 17,
+        fontWeight: "700",
+        color: colors.textDark,
+        flex: 1,
+        textAlign: "center",
     },
     imageContainer: {
         width: width,
-        height: 300,
+        height: 380,
         backgroundColor: colors.white,
-        justifyContent: "center",
+        justifyContent: "flex-start",
         alignItems: "center",
+        paddingTop: 10,
     },
     image: {
         width: width,
-        height: 300,
+        height: 350,
     },
     placeholderContainer: {
         alignItems: "center",
@@ -306,75 +370,103 @@ const styles = StyleSheet.create({
     pagination: {
         flexDirection: "row",
         position: "absolute",
-        bottom: 16,
+        bottom: 20,
         alignSelf: "center",
+        backgroundColor: "rgba(255,255,255,0.8)",
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 20,
     },
     paginationDot: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
+        width: 6,
+        height: 6,
+        borderRadius: 3,
         backgroundColor: "#D1D5DB",
-        marginHorizontal: 4,
+        marginHorizontal: 3,
     },
     paginationDotActive: {
         backgroundColor: colors.primary,
-        width: 20,
+        width: 16,
     },
     detailsContainer: {
         padding: 20,
         backgroundColor: colors.white,
-        marginTop: 10, // Small gap
-        borderTopLeftRadius: 24,
-        borderTopRightRadius: 24,
-        minHeight: 400,
+        marginTop: -30,
+        borderTopLeftRadius: 32,
+        borderTopRightRadius: 32,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: -4 },
+        shadowOpacity: 0.05,
+        shadowRadius: 10,
+        elevation: 5,
     },
     headerRow: {
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "center",
-        marginBottom: 12,
+        marginBottom: 16,
     },
     categoryBadge: {
-        paddingHorizontal: 10,
-        paddingVertical: 4,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
         backgroundColor: "#E0F2FE",
-        borderRadius: 6,
+        borderRadius: 8,
     },
     categoryText: {
         fontSize: 12,
-        fontWeight: "600",
-        color: "#0284C7",
+        fontWeight: "700",
+        color: "#0369A1",
+        textTransform: "uppercase",
+        letterSpacing: 0.5,
     },
     stockBadge: {
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 6,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 8,
     },
     stockText: {
         fontSize: 12,
-        fontWeight: "600",
+        fontWeight: "700",
     },
     name: {
-        fontSize: 22,
-        fontWeight: "700",
+        fontSize: 26,
+        fontWeight: "800",
         color: colors.textDark,
+        marginBottom: 8,
+    },
+    saltContainer: {
+        backgroundColor: "#F9FAFB",
+        padding: 12,
+        borderRadius: 12,
+        marginBottom: 20,
+        borderLeftWidth: 4,
+        borderLeftColor: colors.primary,
+    },
+    saltLabel: {
+        fontSize: 12,
+        fontWeight: "600",
+        color: colors.textLight,
         marginBottom: 4,
     },
-    salt: {
+    saltText: {
         fontSize: 14,
-        color: colors.textLight,
-        marginBottom: 20,
+        color: colors.textDark,
+        lineHeight: 20,
+        fontWeight: "500",
+    },
+    priceSection: {
+        marginBottom: 24,
     },
     priceRow: {
         flexDirection: "row",
         justifyContent: "space-between",
-        alignItems: "center",
-        marginBottom: 24,
+        alignItems: "flex-end",
     },
     label: {
-        fontSize: 12,
+        fontSize: 13,
         color: colors.textLight,
-        marginBottom: 2,
+        marginBottom: 4,
+        fontWeight: "500",
     },
     priceContainer: {
         flexDirection: "row",
@@ -382,58 +474,102 @@ const styles = StyleSheet.create({
         gap: 8,
     },
     price: {
-        fontSize: 24,
-        fontWeight: "800",
+        fontSize: 32,
+        fontWeight: "900",
         color: colors.primary,
     },
     originalPrice: {
-        fontSize: 16,
+        fontSize: 18,
         color: colors.textLight,
         textDecorationLine: "line-through",
+        fontWeight: "400",
     },
     discountTag: {
-        backgroundColor: "#FEF2F2",
-        paddingHorizontal: 12,
+        backgroundColor: "#DCFCE7",
+        paddingHorizontal: 10,
         paddingVertical: 6,
         borderRadius: 8,
-        borderWidth: 1,
-        borderColor: "#FECACA",
+        marginBottom: 4,
     },
     discountTagText: {
-        color: "#EF4444",
-        fontWeight: "700",
+        color: "#166534",
+        fontWeight: "800",
         fontSize: 14,
     },
     divider: {
         height: 1,
         backgroundColor: colors.border,
-        marginVertical: 16,
+        marginVertical: 20,
+    },
+    highlightGrid: {
+        flexDirection: "row",
+        gap: 12,
+        marginBottom: 24,
+    },
+    highlightItem: {
+        flex: 1,
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "#F3F4F6",
+        padding: 12,
+        borderRadius: 16,
+        gap: 10,
+    },
+    highlightLabel: {
+        fontSize: 11,
+        color: colors.textLight,
+        fontWeight: "500",
+    },
+    highlightValue: {
+        fontSize: 13,
+        fontWeight: "700",
+        color: colors.textDark,
+    },
+    cardSection: {
+        marginBottom: 24,
     },
     sectionTitle: {
         fontSize: 18,
-        fontWeight: "600",
+        fontWeight: "700",
         color: colors.textDark,
         marginBottom: 12,
     },
     description: {
         fontSize: 15,
         lineHeight: 24,
-        color: colors.textLight,
+        color: "#4B5563",
+    },
+    manufacturerInfo: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "#F8FAFC",
+        padding: 16,
+        borderRadius: 16,
+        gap: 12,
+        borderWidth: 1,
+        borderColor: "#E2E8F0",
+    },
+    manufacturerName: {
+        fontSize: 16,
+        fontWeight: "600",
+        color: colors.textDark,
     },
     detailRow: {
         flexDirection: "row",
-        marginBottom: 8,
+        justifyContent: "space-between",
+        paddingVertical: 10,
+        borderBottomWidth: 1,
+        borderBottomColor: "#F3F4F6",
     },
     detailLabel: {
-        width: 100,
         fontSize: 14,
         color: colors.textLight,
+        fontWeight: "500",
     },
     detailValue: {
-        flex: 1,
         fontSize: 14,
         color: colors.textDark,
-        fontWeight: "500",
+        fontWeight: "600",
     },
     footer: {
         position: "absolute",
@@ -441,52 +577,52 @@ const styles = StyleSheet.create({
         left: 0,
         right: 0,
         backgroundColor: colors.white,
-        padding: 16,
+        paddingHorizontal: 16,
+        paddingTop: 16,
         borderTopWidth: 1,
         borderTopColor: colors.border,
-        paddingBottom: 30, // Safe area
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: -4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 10,
+        elevation: 20,
     },
     addToCartButton: {
         backgroundColor: colors.primary,
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
-        padding: 16,
-        borderRadius: 16,
-        gap: 8,
-        shadowColor: colors.primary,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 6,
+        padding: 18,
+        borderRadius: 20,
+        gap: 10,
     },
     disabledButton: {
-        backgroundColor: colors.textLight,
-        shadowOpacity: 0,
-        elevation: 0,
+        backgroundColor: "#D1D5DB",
     },
     addToCartText: {
         color: colors.white,
         fontSize: 18,
-        fontWeight: "600",
+        fontWeight: "700",
     },
     quantityContainer: {
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "space-between",
-        backgroundColor: colors.background, // Light bg for the bar
+        backgroundColor: "#F9FAFB",
         padding: 12,
-        borderRadius: 16,
+        borderRadius: 20,
         borderWidth: 1,
-        borderColor: colors.border,
+        borderColor: "#E5E7EB",
     },
     quantityLabel: {
-        fontSize: 14,
+        fontSize: 12,
         color: colors.textLight,
+        fontWeight: "600",
+        textTransform: "uppercase",
     },
     quantityTotal: {
-        fontSize: 16,
-        fontWeight: "700",
+        fontSize: 20,
+        fontWeight: "800",
         color: colors.primary,
     },
 });

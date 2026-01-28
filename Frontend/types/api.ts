@@ -1,24 +1,40 @@
 export interface APIProduct {
-    id: number; // Backend uses numbers for ID
+    id: number;
     name: string;
     sku: string;
     description: string;
-    price: string | number; // JSON shows "5.00" string, but safely handle number
+    price: string | number;
     salePrice?: string | number;
+    buyingPrice?: string | number;
     stock: number;
-    imageUrls: string[]; // Replaces 'images'
-    CategoryId: number; // Replaces 'categoryIds' array
+    imageUrls: string[];
+    CategoryId: number;
+    Categories?: Array<{
+        id: number;
+        name: string;
+        slug: string;
+        description?: string | null;
+        isActive?: boolean;
+        parentId?: number | null;
+    }>;
     Category?: {
         id: number;
         name: string;
         slug: string;
     };
-    companies?: string[];
-    salt?: string[]; // Check if backend returns 'salt' or if it's different. Mocks had string[].
+    companies?: string[] | string[][];
+    Company?: {
+        id: number;
+        name: string;
+        status: string;
+    };
+    salt?: string[] | string[][];
     status?: string;
     createdAt?: string;
     updatedAt?: string;
-    expiry?: string;
+    expiry?: string | null;
+    dosage?: string;
+    packing?: string;
 }
 
 export interface APICategory {

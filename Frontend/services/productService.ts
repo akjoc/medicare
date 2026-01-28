@@ -30,7 +30,50 @@ export interface ProductResponse {
 export const productService = {
     createProduct: async (data: ProductPayload) => {
         try {
-            const response = await privateClient.post(ENDPOINTS.CREATE_PRODUCT, data);
+            const formData = new FormData();
+
+            // Append simple fields
+            (Object.keys(data) as Array<keyof ProductPayload>).forEach(key => {
+                const value = data[key];
+                // Handle arrays and files separately
+                if (key === 'imageUrls' || key === 'categoryIds' || key === 'salt' || key === 'companies') return;
+
+                if (value !== undefined && value !== null) {
+                    formData.append(key, String(value));
+                }
+            });
+
+            // Handle Arrays (Backend expects JSON stringified arrays)
+            if (data.categoryIds && data.categoryIds.length > 0) {
+                formData.append('categoryIds', JSON.stringify(data.categoryIds));
+            }
+            if (data.salt && data.salt.length > 0) {
+                formData.append('salt', JSON.stringify(data.salt));
+            }
+            if (data.companies && data.companies.length > 0) {
+                formData.append('companies', JSON.stringify(data.companies));
+            }
+
+            // Handle Images
+            if (data.imageUrls) {
+                data.imageUrls.forEach((uri, index) => {
+                    const filename = uri.split('/').pop() || `image_${index}.jpg`;
+                    const ext = filename.split('.').pop()?.toLowerCase();
+                    let type = `image/jpeg`; // Default
+                    if (ext === 'png') type = `image/png`;
+                    else if (ext === 'jpg' || ext === 'jpeg') type = `image/jpeg`;
+
+                    formData.append('images', {
+                        uri: Platform.OS === 'android' ? uri : uri.replace('file://', ''),
+                        name: filename,
+                        type: type,
+                    } as any);
+                });
+            }
+
+            const response = await privateClient.post(ENDPOINTS.CREATE_PRODUCT, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+            });
             return response.data;
         } catch (error) {
             throw error;
@@ -70,7 +113,55 @@ export const productService = {
 
     updateProduct: async (id: string, data: ProductPayload) => {
         try {
-            const response = await privateClient.put(ENDPOINTS.UPDATE_PRODUCT(id), data);
+            const formData = new FormData();
+
+            // Append simple fields
+            (Object.keys(data) as Array<keyof ProductPayload>).forEach(key => {
+                const value = data[key];
+                // Handle arrays and files separately
+                if (key === 'imageUrls' || key === 'categoryIds' || key === 'salt' || key === 'companies') return;
+
+                if (value !== undefined && value !== null) {
+                    formData.append(key, String(value));
+                }
+            });
+
+            // Handle Arrays
+            if (data.categoryIds && data.categoryIds.length > 0) {
+                formData.append('categoryIds', JSON.stringify(data.categoryIds));
+            }
+            if (data.salt && data.salt.length > 0) {
+                formData.append('salt', JSON.stringify(data.salt));
+            }
+            if (data.companies && data.companies.length > 0) {
+                formData.append('companies', JSON.stringify(data.companies));
+            }
+
+            // Handle Images
+            // Note: For update, backend should handle existing URLs vs new Files.
+            // We append both; typically backend filters strings vs files.
+            if (data.imageUrls) {
+                data.imageUrls.forEach((uri, index) => {
+                    // Check if it's a remote URL or local file
+                    if (uri.startsWith('http')) {
+                        formData.append('existingImageUrls', uri); // Or 'images' depending on backend
+                    } else {
+                        const filename = uri.split('/').pop() || `image_${index}.jpg`;
+                        const match = /\.(\w+)$/.exec(filename);
+                        const type = match ? `image/${match[1]}` : `image/jpeg`;
+
+                        formData.append('images', {
+                            uri: Platform.OS === 'android' ? uri : uri.replace('file://', ''),
+                            name: filename,
+                            type: type,
+                        } as any);
+                    }
+                });
+            }
+
+            const response = await privateClient.put(ENDPOINTS.UPDATE_PRODUCT(id), formData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+            });
             return response.data;
         } catch (error) {
             throw error;

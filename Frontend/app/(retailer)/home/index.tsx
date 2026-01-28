@@ -193,7 +193,7 @@ export default function HomeScreen() {
                                 <Ionicons name="medical-outline" size={16} color={colors.textLight} style={{ marginRight: 10 }} />
                                 <View style={{ flex: 1 }}>
                                     <Text style={styles.resultName}>{item.name}</Text>
-                                    {item.salt && item.salt.length > 0 && <Text style={styles.resultSalt} numberOfLines={1}>{item.salt.join(", ")}</Text>}
+                                    {item.salt && item.salt.length > 0 && <Text style={styles.resultSalt} numberOfLines={1}>{item.salt.flat().filter(Boolean).join(", ")}</Text>}
                                 </View>
                                 <Ionicons name="chevron-forward" size={16} color={colors.textLight} />
                             </TouchableOpacity>

@@ -90,7 +90,7 @@ export default function ProductForm({
         if (formData.categoryIds.length === 0) newErrors.categoryIds = "At least one category is required";
         if (!formData.price || isNaN(Number(formData.price))) newErrors.price = "Valid price is required";
         if (!formData.sku || !formData.sku.trim()) newErrors.sku = "SKU is required";
-
+        if (!formData.companyInput.trim()) newErrors.companyInput = "Company name is required";
 
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
@@ -101,17 +101,17 @@ export default function ProductForm({
             await onSubmit({
                 ...formData,
                 price: Number(formData.price),
-                salePrice: formData.salePrice ? Number(formData.salePrice) : undefined,
+                salePrice: formData.salePrice ? Number(formData.salePrice) : null,
                 stock: formData.stock ? Number(formData.stock) : 0,
                 categoryIds: formData.categoryIds,
                 status: formData.status as any,
                 imageUrls: formData.images,
-                salt: formData.salt.length > 0 ? formData.salt : undefined,
+                salt: formData.salt.length > 0 ? formData.salt : [],
                 companies: formData.companyInput ? [formData.companyInput] : [],
-                buyingPrice: formData.buyingPrice ? Number(formData.buyingPrice) : undefined,
-                dosage: formData.dosage || undefined,
-                packing: formData.packing || undefined,
-                expiry: formData.expiry || undefined,
+                buyingPrice: formData.buyingPrice ? Number(formData.buyingPrice) : null,
+                dosage: formData.dosage || null,
+                packing: formData.packing || null,
+                expiry: formData.expiry || null,
             });
         }
     };
@@ -320,14 +320,15 @@ export default function ProductForm({
                 </View>
 
                 <View style={styles.inputContainer}>
-                    <Text style={styles.label}>Company Name</Text>
+                    <Text style={styles.label}>Company Name <Text style={styles.required}>*</Text></Text>
                     <TextInput
-                        style={styles.input}
+                        style={[styles.input, errors.companyInput && styles.inputError]}
                         value={formData.companyInput}
                         onChangeText={(text) => setFormData(prev => ({ ...prev, companyInput: text }))}
                         placeholder="e.g., Healthcare Corp"
                         placeholderTextColor={colors.textLight}
                     />
+                    {errors.companyInput && <Text style={styles.errorText}>{errors.companyInput}</Text>}
                 </View>
 
                 <View style={styles.inputContainer}>
