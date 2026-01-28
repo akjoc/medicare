@@ -34,23 +34,35 @@ const createProduct = async (req, res) => {
     try {
         const { name, description, price, buyingPrice, salePrice, companies, stock, categoryId, categoryIds, salt, sku, dosage, packing, expiry } = req.body;
 
+        // Helper to parse array fields
+        const parseArrayField = (field) => {
+            if (!field) return [];
+            if (Array.isArray(field)) return field;
+            try {
+                const parsed = JSON.parse(field);
+                return Array.isArray(parsed) ? parsed : [parsed];
+            } catch (e) {
+                return [field];
+            }
+        };
+
         // Check if category provided (Handle single or array)
         let targetCategoryIds = [];
-        if (categoryIds && Array.isArray(categoryIds)) {
-            targetCategoryIds = categoryIds;
+        if (categoryIds) {
+            targetCategoryIds = parseArrayField(categoryIds);
         } else if (categoryId) {
             targetCategoryIds = Array.isArray(categoryId) ? categoryId : [categoryId];
         }
 
-        if (targetCategoryIds.length === 0) {
-            // Delete uploaded images
-            if (req.files) {
-                for (const file of req.files) {
-                    await cloudinary.uploader.destroy(file.filename);
-                }
-            }
-            return res.status(400).json({ error: 'Please provide categoryIds (array) or categoryId' });
-        }
+        // if (targetCategoryIds.length === 0) {
+        //     // Delete uploaded images
+        //     if (req.files) {
+        //         for (const file of req.files) {
+        //             await cloudinary.uploader.destroy(file.filename);
+        //         }
+        //     }
+        //     return res.status(400).json({ error: 'Please provide categoryIds (array) or categoryId' });
+        // }
 
         // Validate Categories Exist
         const validCategoriesCount = await Category.count({ where: { id: targetCategoryIds } });
@@ -98,15 +110,7 @@ const createProduct = async (req, res) => {
             publicIds = []; // No public ID for external/default image
         }
 
-        const parseArrayField = (field) => {
-            if (!field) return [];
-            if (Array.isArray(field)) return field; // Already an array
-            try {
-                return JSON.parse(field);
-            } catch (e) {
-                return [field];
-            }
-        };
+
 
         // Helper to validate and convert Expiry to YYYY-MM-DD
         const parseAndValidateExpiry = (dateInput) => {
@@ -380,8 +384,10 @@ const updateProduct = async (req, res) => {
         const parseArrayField = (field) => {
             if (field === undefined) return undefined; // Don't update if not provided
             if (field === null) return [];
+            if (Array.isArray(field)) return field;
             try {
-                return JSON.parse(field);
+                const parsed = JSON.parse(field);
+                return Array.isArray(parsed) ? parsed : [parsed];
             } catch (e) {
                 return [field];
             }
@@ -421,8 +427,11 @@ const updateProduct = async (req, res) => {
         // Handle Categories Update
         if (categoryIds || categoryId) {
             let targetCategoryIds = [];
-            if (categoryIds && Array.isArray(categoryIds)) {
-                targetCategoryIds = categoryIds;
+
+            if (categoryIds) {
+                targetCategoryIds = parseArrayField(categoryIds);
+                // Ensure array just in case
+                if (!Array.isArray(targetCategoryIds)) targetCategoryIds = [targetCategoryIds];
             } else if (categoryId) {
                 targetCategoryIds = Array.isArray(categoryId) ? categoryId : [categoryId];
             }
