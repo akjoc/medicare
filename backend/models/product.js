@@ -36,7 +36,7 @@ const Product = sequelize.define('Product', {
     },
     companyId: {
         type: DataTypes.INTEGER,
-        allowNull: false, // Allow null initially for migration
+        allowNull: true, // Allow null initially for migration
         references: {
             model: 'Companies', // Table name
             key: 'id',
