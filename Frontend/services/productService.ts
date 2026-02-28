@@ -177,6 +177,15 @@ export const productService = {
         }
     },
 
+    deleteAllProducts: async () => {
+        try {
+            const response = await privateClient.delete(ENDPOINTS.DELETE_ALL_PRODUCTS);
+            return response.data;
+        } catch (error) {
+            throw error;
+        }
+    },
+
     bulkUploadProducts: async (file: any, onProgress?: (progress: number) => void) => {
         try {
             const formData = new FormData();

@@ -21,6 +21,7 @@ export const ENDPOINTS = {
     GET_PRODUCT_BY_ID: (id: string) => `/products/${id}`,
     UPDATE_PRODUCT: (id: string) => `/products/${id}`,
     DELETE_PRODUCT: (id: string) => `/products/${id}`,
+    DELETE_ALL_PRODUCTS: "/products/delete-all",
     BULK_UPLOAD_PRODUCTS: "/products/bulk-upload",
     // Coupon
     CREATE_COUPON: "/coupons",

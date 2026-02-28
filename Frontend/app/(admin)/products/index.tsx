@@ -30,6 +30,7 @@ export default function ProductsScreen() {
     // Pagination state
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
+    const [totalProducts, setTotalProducts] = useState(0);
 
     // Debounce search query with 500ms delay
     useEffect(() => {
@@ -63,6 +64,7 @@ export default function ProductsScreen() {
                 setPage(1);
             }
             setTotalPages(response.totalPages);
+            setTotalProducts(response.totalProducts);
         } catch (error: any) {
             console.error("Failed to fetch products", error);
             const message = error.response?.data?.message || "Failed to fetch products";
@@ -113,6 +115,34 @@ export default function ProductsScreen() {
         );
     };
 
+    const handleDeleteAll = async () => {
+        Alert.alert(
+            "Delete All Products",
+            "Are you sure you want to delete ALL products? This action cannot be undone.",
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Delete All",
+                    style: "destructive",
+                    onPress: async () => {
+                        try {
+                            setLoading(true);
+                            await productService.deleteAllProducts();
+                            loadData(false);
+                            Alert.alert("Success", "All products deleted successfully");
+                        } catch (error: any) {
+                            console.error("Delete all products error:", error);
+                            const message = error.response?.data?.message || "Failed to delete all products";
+                            Alert.alert("Error", message);
+                        } finally {
+                            setLoading(false);
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
     const handleBulkUpload = async (file: any, onProgress: (p: number) => void) => {
         try {
             await productService.bulkUploadProducts(file, onProgress);
@@ -139,14 +169,22 @@ export default function ProductsScreen() {
             <View style={styles.header}>
                 <View>
                     <Text style={styles.title}>Products</Text>
-                    <Text style={styles.subtitle}>{products.length} Items</Text>
+                    <Text style={styles.subtitle}>{totalProducts} Items</Text>
                 </View>
-                <TouchableOpacity
-                    style={styles.addButton}
-                    onPress={() => router.push("/(admin)/products/create")}
-                >
-                    <Ionicons name="add" size={24} color={colors.white} />
-                </TouchableOpacity>
+                <View style={{ flexDirection: "row", gap: 12 }}>
+                    <TouchableOpacity
+                        style={[styles.addButton, { backgroundColor: colors.error }]}
+                        onPress={handleDeleteAll}
+                    >
+                        <Ionicons name="trash-outline" size={24} color={colors.white} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={styles.addButton}
+                        onPress={() => router.push("/(admin)/products/create")}
+                    >
+                        <Ionicons name="add" size={24} color={colors.white} />
+                    </TouchableOpacity>
+                </View>
             </View>
 
             <View style={styles.actionRow}>
@@ -167,6 +205,8 @@ export default function ProductsScreen() {
                 >
                     <Ionicons name="cloud-upload-outline" size={24} color={colors.primary} />
                 </TouchableOpacity>
+
+
 
                 <TouchableOpacity
                     style={styles.iconButton}

@@ -2,7 +2,7 @@ import { colors } from "@/styles/colors";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import { useState } from "react";
-import { Alert, Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 interface BulkUploadModalProps {
     visible: boolean;
@@ -14,6 +14,7 @@ export default function BulkUploadModal({ visible, onClose, onUpload }: BulkUplo
     const [uploading, setUploading] = useState(false);
     const [progress, setProgress] = useState(0);
     const [completed, setCompleted] = useState(false);
+    const [uploadErrors, setUploadErrors] = useState<string[]>([]);
 
     const handleUpload = async () => {
         try {
@@ -41,11 +42,26 @@ export default function BulkUploadModal({ visible, onClose, onUpload }: BulkUplo
             setUploading(true);
             setProgress(0);
             setCompleted(false);
+            setUploadErrors([]);
 
-            await onUpload(file, (p) => {
-                setProgress(p);
-            });
+            // Simulate progress to ensure user sees activity
+            const simulationInterval = setInterval(() => {
+                setProgress((prev) => {
+                    if (prev >= 0.9) return 0.9;
+                    return Math.min(prev + 0.1, 0.9);
+                });
+            }, 300);
 
+            try {
+                await onUpload(file, (p) => {
+                    // Update progress only if actual progress is greater than simulated
+                    setProgress((prev) => Math.max(prev, p));
+                });
+            } finally {
+                clearInterval(simulationInterval);
+            }
+
+            setProgress(1);
             setCompleted(true);
             setTimeout(() => {
                 onClose();
@@ -57,11 +73,27 @@ export default function BulkUploadModal({ visible, onClose, onUpload }: BulkUplo
                 }, 500);
             }, 1500);
         } catch (error: any) {
+            // Error handling is improved to showing the modal
             console.error(error);
             const message = error.response?.data?.message || error.message || "Failed to upload file";
-            Alert.alert("Error", message);
+            const errors = error.response?.data?.errors;
+
+            if (errors && Array.isArray(errors) && errors.length > 0) {
+                setUploadErrors(errors);
+            } else {
+                Alert.alert("Error", message);
+            }
             setUploading(false);
         }
+    };
+
+    const handleClose = () => {
+        setUploadErrors([]);
+        onClose();
+    };
+
+    const handleCloseErrorModal = () => {
+        setUploadErrors([]);
     };
 
     return (
@@ -121,6 +153,37 @@ export default function BulkUploadModal({ visible, onClose, onUpload }: BulkUplo
                     </View>
                 </View>
             </View>
+
+            {/* Error Modal */}
+            <Modal
+                visible={uploadErrors.length > 0}
+                transparent
+                animationType="fade"
+                onRequestClose={handleCloseErrorModal}
+            >
+                <View style={styles.errorOverlay}>
+                    <View style={styles.errorModal}>
+                        <View style={styles.errorHeader}>
+                            <Ionicons name="alert-circle" size={48} color={colors.error} />
+                            <Text style={styles.errorTitle}>Upload Failed</Text>
+                            <Text style={styles.errorSubtitle}>
+                                The following errors were found in your file:
+                            </Text>
+                        </View>
+                        <ScrollView style={styles.errorList}>
+                            {uploadErrors.map((error, index) => (
+                                <View key={index} style={styles.errorItem}>
+                                    <Ionicons name="close-circle-outline" size={20} color={colors.error} />
+                                    <Text style={styles.errorText}>{error}</Text>
+                                </View>
+                            ))}
+                        </ScrollView>
+                        <TouchableOpacity style={styles.button} onPress={handleCloseErrorModal}>
+                            <Text style={styles.buttonText}>Close</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </Modal>
     );
 }
@@ -216,5 +279,56 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: "700",
         color: "#28A745",
+    },
+    errorOverlay: {
+        flex: 1,
+        backgroundColor: "rgba(0,0,0,0.5)",
+        justifyContent: "center",
+        alignItems: "center",
+        padding: 20,
+    },
+    errorModal: {
+        backgroundColor: colors.white,
+        borderRadius: 16,
+        padding: 24,
+        width: "100%",
+        maxHeight: "80%",
+        elevation: 5,
+    },
+    errorHeader: {
+        alignItems: "center",
+        marginBottom: 16,
+    },
+    errorTitle: {
+        fontSize: 20,
+        fontWeight: "700",
+        color: colors.error,
+        marginTop: 8,
+    },
+    errorSubtitle: {
+        fontSize: 14,
+        color: colors.textLight,
+        marginTop: 4,
+        textAlign: "center",
+    },
+    errorList: {
+        marginBottom: 16,
+        borderWidth: 1,
+        borderColor: colors.border,
+        borderRadius: 12,
+        padding: 12,
+        backgroundColor: "#FFF5F5",
+    },
+    errorItem: {
+        flexDirection: "row",
+        alignItems: "flex-start",
+        marginBottom: 8,
+        gap: 8,
+    },
+    errorText: {
+        flex: 1,
+        fontSize: 14,
+        color: colors.textDark,
+        lineHeight: 20,
     },
 });
