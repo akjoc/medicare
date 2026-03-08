@@ -1,6 +1,8 @@
 const { Cart, CartItem, Product, User, Order, OrderItem, Coupon, AppSetting, PaymentConfig, Retailer, Category } = require('../models/associations');
 const { sequelize } = require('../config/database');
 const { Op } = require('sequelize');
+const { generateInvoicePDF } = require('../utils/invoiceGenerator');
+const { uploadPDFToCloudinary } = require('../config/cloudinaryConfig');
 
 // Helper to calc delivery fee (Mock logic or DB config)
 // Helper to calc delivery fee (Mock logic or DB config)
@@ -167,11 +169,11 @@ const getCheckoutSummary = async (req, res) => {
         res.status(200).json({
             cartItems: cleanItems,
             billDetails: {
-                itemTotal: subTotal,
-                deliveryFee: deliveryFee === 0 ? 'FREE' : deliveryFee,
-                couponDiscount,
-                paymentDiscount,
-                toPay: totalAmount.toFixed(2)
+                itemTotal: parseFloat(subTotal).toFixed(2),
+                deliveryFee: deliveryFee === 0 ? 'FREE' : parseFloat(deliveryFee).toFixed(2),
+                couponDiscount: parseFloat(couponDiscount).toFixed(2),
+                paymentDiscount: parseFloat(paymentDiscount).toFixed(2),
+                toPay: parseFloat(totalAmount).toFixed(2)
             }
         });
 
@@ -401,13 +403,13 @@ const placeOrder = async (req, res) => {
         const order = await Order.create({
             userId,
             address: addressStr,
-            totalAmount: finalTotal,
-            subTotal,
-            discount: couponDiscount + paymentDiscount, // Total discount field for backward compat
-            couponDiscount,    // New separate field
-            paymentDiscount,   // New separate field
+            totalAmount: parseFloat(finalTotal).toFixed(2),
+            subTotal: parseFloat(subTotal).toFixed(2),
+            discount: parseFloat(couponDiscount + paymentDiscount).toFixed(2), // Total discount field for backward compat
+            couponDiscount: parseFloat(couponDiscount).toFixed(2),    // New separate field
+            paymentDiscount: parseFloat(paymentDiscount).toFixed(2),   // New separate field
             couponCode: validCouponCode,
-            deliveryFee,
+            deliveryFee: parseFloat(deliveryFee).toFixed(2),
             paymentMethod,
             deliveryFee,
             paymentMethod,
@@ -440,14 +442,14 @@ const placeOrder = async (req, res) => {
         res.status(201).json({
             message: 'Order placed successfully',
             orderId: order.id,
-            totalAmount: finalTotal,
+            totalAmount: parseFloat(finalTotal).toFixed(2),
             paymentMethod: paymentMethod,
-            itemTotal: subTotal,
-            deliveryFee: deliveryFee === 0 ? 'FREE' : deliveryFee,
-            couponDiscount,
-            paymentDiscount,
+            itemTotal: parseFloat(subTotal).toFixed(2),
+            deliveryFee: deliveryFee === 0 ? 'FREE' : parseFloat(deliveryFee).toFixed(2),
+            couponDiscount: parseFloat(couponDiscount).toFixed(2),
+            paymentDiscount: parseFloat(paymentDiscount).toFixed(2),
             couponCode: validCouponCode,
-            toPay: finalTotal.toFixed(2),
+            toPay: parseFloat(finalTotal).toFixed(2),
         });
 
     } catch (error) {
@@ -782,4 +784,70 @@ const rateOrder = async (req, res) => {
     }
 };
 
-module.exports = { getCheckoutSummary, placeOrder, getUserOrders, getAllOrders, uploadInvoice, getRetailerOrders, getOrderById, updatePaymentStatus, updateOrderStatus, rateOrder };
+// @desc    Auto-Generate Invoice PDF (Admin)
+// @route   POST /api/orders/:id/generate-invoice
+// @access  Private/Admin
+const generateInvoice = async (req, res) => {
+    try {
+        const orderId = req.params.id;
+
+        // 1. Fetch order with all related data
+        const order = await Order.findByPk(orderId, {
+            include: [
+                { model: User, attributes: ['id', 'name', 'email'] },
+                {
+                    model: OrderItem,
+                    include: [{
+                        model: Product,
+                        attributes: ['id', 'name', 'sku', 'description', 'imageUrls', 'companies', 'salt', 'dosage', 'packing']
+                    }]
+                }
+            ]
+        });
+
+        if (!order) {
+            return res.status(404).json({ error: 'Order not found' });
+        }
+
+        // 2. Validate order status - only generate invoices for confirmed orders
+        const allowedStatuses = ['Processing', 'Packed', 'Out for Delivery', 'Delivered'];
+        if (!allowedStatuses.includes(order.status)) {
+            return res.status(400).json({
+                error: 'Invoice cannot be generated for this order status',
+                currentStatus: order.status,
+                message: order.status === 'Cancelled'
+                    ? 'Cannot generate invoice for cancelled orders'
+                    : 'Invoice can only be generated for confirmed orders (Processing, Packed, Out for Delivery, or Delivered)'
+            });
+        }
+
+        // 3. Fetch app settings for company information
+        const appSettings = await AppSetting.findByPk(1);
+        if (!appSettings) {
+            return res.status(500).json({ error: 'App settings not configured' });
+        }
+
+        // 4. Generate PDF
+        const pdfBuffer = await generateInvoicePDF(order, appSettings);
+
+        // 5. Upload to Cloudinary
+        const fileName = `invoice_${orderId}_${Date.now()}`;
+        const uploadResult = await uploadPDFToCloudinary(pdfBuffer, fileName);
+
+        // 6. Update order with invoice URL
+        order.invoiceUrl = uploadResult.secure_url;
+        await order.save();
+
+        res.status(200).json({
+            message: 'Invoice generated successfully',
+            invoiceUrl: order.invoiceUrl,
+            orderId: order.id
+        });
+
+    } catch (error) {
+        console.error('Generate Invoice Error:', error);
+        res.status(500).json({ error: 'Failed to generate invoice', details: error.message });
+    }
+};
+
+module.exports = { getCheckoutSummary, placeOrder, getUserOrders, getAllOrders, uploadInvoice, getRetailerOrders, getOrderById, updatePaymentStatus, updateOrderStatus, rateOrder, generateInvoice };

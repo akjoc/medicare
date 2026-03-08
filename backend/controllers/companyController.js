@@ -1,5 +1,6 @@
 const Company = require('../models/company');
 const Product = require('../models/product');
+const Category = require('../models/category');
 
 // Create Company (Admin Only)
 const createCompany = async (req, res) => {
@@ -45,11 +46,28 @@ const getAllCompanies = async (req, res) => {
 // Get Company By ID
 const getCompanyById = async (req, res) => {
     try {
-        const company = await Company.findByPk(req.params.id);
+        const companyId = req.params.id;
+        const company = await Company.findByPk(companyId);
         if (!company) {
             return res.status(404).json({ error: 'Company not found' });
         }
-        res.status(200).json(company);
+
+        // Fetch products for this company
+        const products = await Product.findAll({
+            where: { companyId: companyId },
+            include: [
+                {
+                    model: Category,
+                    through: { attributes: [] }
+                }
+            ]
+        });
+
+        const result = company.get({ plain: true });
+        result.products = products.map(p => p.get({ plain: true }));
+        result.totalProducts = products.length;
+
+        res.status(200).json(result);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

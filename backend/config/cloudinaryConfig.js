@@ -19,4 +19,33 @@ const storage = new CloudinaryStorage({
 
 const upload = multer({ storage: storage });
 
-module.exports = { cloudinary, upload };
+/**
+ * Upload PDF buffer to Cloudinary
+ * @param {Buffer} pdfBuffer - PDF file buffer
+ * @param {string} fileName - Name for the PDF file
+ * @returns {Promise<Object>} - Cloudinary upload result
+ */
+const uploadPDFToCloudinary = async (pdfBuffer, fileName) => {
+    return new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+            {
+                folder: 'invoices',
+                resource_type: 'raw',
+                public_id: fileName,
+                format: 'pdf'
+            },
+            (error, result) => {
+                if (error) {
+                    reject(error);
+                } else {
+                    resolve(result);
+                }
+            }
+        );
+
+        // Write buffer to stream
+        uploadStream.end(pdfBuffer);
+    });
+};
+
+module.exports = { cloudinary, upload, uploadPDFToCloudinary };

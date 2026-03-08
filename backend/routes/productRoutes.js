@@ -8,6 +8,7 @@ const { uploadFile } = require('../config/fileUploadConfig');
 
 // Public Route
 router.get('/', protect, productController.getAllProducts);
+router.post('/by-ids', protect, productController.getProductsByIds);
 router.get('/:id', protect, productController.getProductById);
 
 // Admin Routes

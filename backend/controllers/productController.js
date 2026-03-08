@@ -135,9 +135,9 @@ const createProduct = async (req, res) => {
             name,
             sku,
             description,
-            price,
-            buyingPrice,
-            salePrice,
+            price: price ? parseFloat(parseFloat(price).toFixed(2)) : undefined,
+            buyingPrice: buyingPrice ? parseFloat(parseFloat(buyingPrice).toFixed(2)) : undefined,
+            salePrice: salePrice ? parseFloat(parseFloat(salePrice).toFixed(2)) : undefined,
             companies: parseArrayField(companies),
             stock,
             salt: parseArrayField(salt),
@@ -186,7 +186,7 @@ const createProduct = async (req, res) => {
 // Get All Products
 const getAllProducts = async (req, res) => {
     try {
-        const { search, page = 1 } = req.query;
+        const { search, page = 1, categoryId, companyId } = req.query;
         const limit = 26;
         const offset = (page - 1) * limit;
 
@@ -222,7 +222,6 @@ const getAllProducts = async (req, res) => {
         }
 
         // 1. FILTER INACTIVE COMPANIES
-        // 1. FILTER INACTIVE COMPANIES
         // If user is NOT Admin, they should only see products from ACTIVE companies.
         if (!req.user || req.user.role !== 'admin') {
             // Using top-level where with association syntax ensures findAndCountAll respects it for the count query
@@ -231,9 +230,14 @@ const getAllProducts = async (req, res) => {
                 ...queryOptions.where,
                 '$Company.status$': 'active'
             };
+        }
 
-            // We don't strictly need to set required: true on the include if we usage top level where,
-            // but keeping the include clean is good.
+        // Add companyId filter if provided
+        if (companyId) {
+            queryOptions.where = {
+                ...queryOptions.where,
+                companyId: companyId
+            };
         }
 
         // 2. RETAILER PERMISSIONS (Category-based)
@@ -261,11 +265,25 @@ const getAllProducts = async (req, res) => {
                     // Filter via Association (Inner Join)
                     // We modify the include to apply the where clause on the joined table
                     if (queryOptions.include && queryOptions.include[0]) {
-                        queryOptions.include[0].where = { id: { [Op.in]: expandedCategoryIds } };
+                        queryOptions.include[0].where = {
+                            id: categoryId ? { [Op.in]: expandedCategoryIds, [Op.eq]: categoryId } : { [Op.in]: expandedCategoryIds }
+                        };
                         queryOptions.include[0].required = true; // Inner join to enforce filter
+                    }
+                } else if (categoryId) {
+                    // Retailer has no categories but explicitly asks for one
+                    if (queryOptions.include && queryOptions.include[0]) {
+                        queryOptions.include[0].where = { id: categoryId };
+                        queryOptions.include[0].required = true;
                     }
                 }
                 // Else: Do nothing, let them see all products (subject to company filter above)
+            }
+        } else if (categoryId) {
+            // General category filtering for admin/unrestricted
+            if (queryOptions.include && queryOptions.include[0]) {
+                queryOptions.include[0].where = { id: categoryId };
+                queryOptions.include[0].required = true;
             }
         }
 
@@ -317,6 +335,69 @@ const getAllProducts = async (req, res) => {
             totalPages: Math.ceil(count / limit),
             currentPage: parseInt(page)
         });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// Get Products by Array of IDs
+const getProductsByIds = async (req, res) => {
+    try {
+        const { ids } = req.body;
+
+        if (!ids || !Array.isArray(ids) || ids.length === 0) {
+            return res.status(400).json({ error: 'Please provide an array of product IDs' });
+        }
+
+        const products = await Product.findAll({
+            where: { id: { [Op.in]: ids } },
+            include: [
+                {
+                    model: Category,
+                    through: { attributes: [] }
+                },
+                {
+                    model: Company,
+                    attributes: ['id', 'name', 'status']
+                }
+            ]
+        });
+
+        // Fetch raw data for dynamic columns
+        let mergedRows = [];
+        if (products.length > 0) {
+            const fetchedIds = products.map(r => r.id);
+            const rawData = await sequelize.query(
+                `SELECT * FROM Products WHERE id IN (:ids)`,
+                {
+                    replacements: { ids: fetchedIds },
+                    type: sequelize.QueryTypes.SELECT
+                }
+            );
+
+            mergedRows = products.map(p => {
+                const plain = p.get({ plain: true });
+                const raw = rawData.find(r => r.id === p.id) || {};
+                return { ...raw, ...plain };
+            });
+        }
+
+        // Sanitize response
+        const cleanRows = mergedRows.map(p => {
+            const response = getCleanProduct(p);
+            if (response.imageurl) delete response.imageurl;
+            if (response['s.no']) delete response['s.no'];
+            if (response.sno) delete response.sno;
+            if (response['no.']) delete response['no.'];
+            if (response.s_no) delete response.s_no;
+            return response;
+        });
+
+        res.status(200).json({
+            products: cleanRows,
+            totalProducts: cleanRows.length
+        });
+
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -413,9 +494,9 @@ const updateProduct = async (req, res) => {
             name,
             sku,
             description,
-            price,
-            buyingPrice,
-            salePrice,
+            price: price ? parseFloat(parseFloat(price).toFixed(2)) : undefined,
+            buyingPrice: buyingPrice ? parseFloat(parseFloat(buyingPrice).toFixed(2)) : undefined,
+            salePrice: salePrice ? parseFloat(parseFloat(salePrice).toFixed(2)) : undefined,
             companies: parseArrayField(companies),
             stock,
             salt: parseArrayField(salt),
@@ -689,12 +770,14 @@ const bulkUploadProducts = async (req, res) => {
                     sku = `SKU-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
                 }
 
-                // Helper to clean price: "13.35/amp." -> 13.35
+                // Helper to clean price: "13.35/amp." -> 13.35, "1,399.00" -> 1399
                 const cleanPrice = (val) => {
-                    if (!val) return null;
-                    if (typeof val === 'number') return val;
-                    const match = String(val).match(/[0-9]+(\.[0-9]+)?/);
-                    return match ? parseFloat(match[0]) : null;
+                    if (!val && val !== 0) return null;
+                    if (typeof val === 'number') return parseFloat(val.toFixed(2));
+                    // Remove commas and spaces before matching
+                    const cleanStr = String(val).replace(/,/g, '').trim();
+                    const match = cleanStr.match(/[0-9]+(\.[0-9]+)?/);
+                    return match ? parseFloat(parseFloat(match[0]).toFixed(2)) : null;
                 };
 
                 let rawPrice = normalizedRow.price || normalizedRow.mrp;
@@ -950,6 +1033,7 @@ module.exports = {
     createProduct,
     getAllProducts,
     getProductById,
+    getProductsByIds,
     updateProduct,
     deleteProduct,
     bulkUploadProducts,

@@ -58,4 +58,6 @@ OrderItem.belongsTo(Order, { foreignKey: 'orderId' });
 Product.hasMany(OrderItem, { foreignKey: 'productId' });
 OrderItem.belongsTo(Product, { foreignKey: 'productId' });
 
-module.exports = { Product, Category, ProductCategory, Coupon, Cart, CartItem, User, Order, OrderItem, Retailer, PaymentConfig, Company };
+const AppSetting = require('./AppSetting');
+
+module.exports = { Product, Category, ProductCategory, Coupon, Cart, CartItem, User, Order, OrderItem, Retailer, PaymentConfig, Company, AppSetting };

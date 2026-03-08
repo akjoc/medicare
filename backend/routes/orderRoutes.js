@@ -14,7 +14,8 @@ const {
     updatePaymentStatus,
     updateOrderStatus,
     uploadInvoice: uploadInvoiceController,
-    rateOrder
+    rateOrder,
+    generateInvoice
 } = require('../controllers/orderController');
 
 // Calculate bill before placing order
@@ -43,6 +44,9 @@ router.put('/:id/status', protect, admin, updateOrderStatus);
 
 // Rate Order (Admin)
 router.put('/:id/rate', protect, admin, rateOrder);
+
+// Auto-Generate Invoice (Admin)
+router.post('/:id/generate-invoice', protect, admin, generateInvoice);
 
 // Get Order By ID (Must be last to avoid matching conflicts)
 router.get('/:id', protect, getOrderById);

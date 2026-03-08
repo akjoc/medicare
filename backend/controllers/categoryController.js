@@ -1,6 +1,7 @@
 const Category = require('../models/category');
 const Product = require('../models/product');
 const Retailer = require('../models/retailer');
+const Company = require('../models/company');
 const { getDescendantCategoryIds } = require('../utils/categoryHelpers');
 
 // Helper to create slug
@@ -159,6 +160,34 @@ const getCategoryById = async (req, res) => {
             const parent = await Category.findByPk(result.parentId);
             result.parent = parent;
         }
+
+        // Fetch products for this category and all its descendants
+        const descendantIds = getDescendantCategoryIds(plainCategories, [categoryId]);
+        const allRelevantCategoryIds = [categoryId, ...descendantIds];
+
+        const products = await Product.findAll({
+            include: [
+                {
+                    model: Category,
+                    where: { id: allRelevantCategoryIds },
+                    through: { attributes: [] }
+                },
+                {
+                    model: Company,
+                    attributes: ['id', 'name', 'status']
+                }
+            ]
+        });
+
+        // Clean up internal category junction data from products if needed
+        const cleanProducts = products.map(p => {
+            const plainProduct = p.get({ plain: true });
+            if (plainProduct.Categories) delete plainProduct.Categories;
+            return plainProduct;
+        });
+
+        result.products = cleanProducts;
+        result.totalProducts = cleanProducts.length;
 
         res.status(200).json(result);
     } catch (error) {
